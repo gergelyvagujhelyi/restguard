@@ -56,93 +56,90 @@ fun DashboardScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // ─── Sticky Glassy Status Banner ──────────────
-        val glassShape = RoundedCornerShape(16.dp)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            stressColor.copy(alpha = 0.12f),
-                            stressColor.copy(alpha = 0.03f),
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+    ) {
+        // ─── Glassy Status Banner ─────────────────────
+        item {
+            val glassShape = RoundedCornerShape(16.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                stressColor.copy(alpha = 0.12f),
+                                stressColor.copy(alpha = 0.03f),
+                            ),
                         ),
-                    ),
-                    shape = glassShape,
-                )
-                .border(
-                    width = 1.dp,
-                    color = DarkCardBorder,
-                    shape = glassShape,
-                )
-                .padding(16.dp),
-        ) {
-            // Status bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                        shape = glassShape,
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = DarkCardBorder,
+                        shape = glassShape,
+                    )
+                    .padding(16.dp),
             ) {
-                Canvas(Modifier.size(10.dp)) {
-                    drawCircle(color = stressColor)
+                // Status bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Canvas(Modifier.size(10.dp)) {
+                        drawCircle(color = stressColor)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Stress Level: ${state.stressLevel.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${state.currentStress?.score ?: "—"}/100",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary,
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Stress Level: ${state.stressLevel.label}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "${state.currentStress?.score ?: "—"}/100",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = DarkCardBorder.copy(alpha = 0.5f))
+                Spacer(Modifier.height(12.dp))
+
+                // App header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "RestGuard",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "AI Wellbeing Co-Pilot",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary,
+                    )
+                }
+
+                // Circular gauge with glow
+                StressGauge(
+                    score = state.currentStress?.score ?: 0,
+                    level = state.stressLevel,
+                    stressColor = stressColor,
                 )
             }
-
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = DarkCardBorder.copy(alpha = 0.5f))
-            Spacer(Modifier.height(12.dp))
-
-            // App header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "RestGuard",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "AI Wellbeing Co-Pilot",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary,
-                )
-            }
-
-            // Circular gauge with glow
-            StressGauge(
-                score = state.currentStress?.score ?: 0,
-                level = state.stressLevel,
-                stressColor = stressColor,
-            )
         }
 
-        // ─── Scrollable Content ───────────────────────
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
-        ) {
         // ─── Health Metrics Grid ───────────────────────
         item {
             val health = state.currentStress
@@ -323,8 +320,7 @@ fun DashboardScreen(
                 }
             }
         }
-    } // LazyColumn
-    } // Column
+    }
 }
 
 // ─── Circular Stress Gauge ──────────────────────────────────
