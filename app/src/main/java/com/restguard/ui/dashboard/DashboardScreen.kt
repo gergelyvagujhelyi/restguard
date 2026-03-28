@@ -398,39 +398,40 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(180.dp)) {
-                val arcStroke = 8.dp.toPx()
+            Canvas(modifier = Modifier.size(200.dp)) {
+                val arcStroke = 7.dp.toPx()
 
-                // Ambient glow — blurred colored circle behind gauge
-                // (matches stress-copilot: blur-xl opacity-30 div)
+                // Ambient haze — warm glow filling the ring interior
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            stressColor.copy(alpha = 0.30f),
-                            stressColor.copy(alpha = 0.15f),
+                            stressColor.copy(alpha = 0.05f),
+                            stressColor.copy(alpha = 0.18f),
+                            stressColor.copy(alpha = 0.25f),
+                            stressColor.copy(alpha = 0.10f),
                             Color.Transparent,
                         ),
                         center = center,
-                        radius = size.minDimension / 2,
+                        radius = size.minDimension * 0.45f,
                     ),
                 )
 
-                // Background track — full ring at 40% opacity
+                // Background track
                 drawArc(
-                    color = bgArcColor.copy(alpha = 0.4f),
+                    color = bgArcColor.copy(alpha = 0.35f),
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
-                // Smooth glow — many fine layers for gradient falloff
-                val glowSteps = 20
-                val maxSpread = 36.dp.toPx()
+                // Soft glow — 24 layers, smooth cubic falloff
+                val glowSteps = 24
+                val maxSpread = 44.dp.toPx()
                 for (i in glowSteps downTo 1) {
                     val t = i.toFloat() / glowSteps
                     val spread = maxSpread * t
-                    val alpha = 0.45f * (1f - t) * (1f - t) // quadratic ease-in
+                    val alpha = 0.50f * (1f - t) * (1f - t) * (1f - t)
                     drawArc(
                         color = stressColor.copy(alpha = alpha),
                         startAngle = 135f,
@@ -440,7 +441,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     )
                 }
 
-                // Crisp progress arc
+                // Bright core arc
                 drawArc(
                     color = stressColor,
                     startAngle = 135f,
@@ -448,6 +449,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     useCenter = false,
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
+
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
