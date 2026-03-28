@@ -392,14 +392,20 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     val sweepAngle = (score / 100f) * 270f
     val bgArcColor = DarkCardBorder
 
-    // Slow pulsating glow
+    // 4-7-8 breathing glow: 4s inhale, 7s hold, 8s exhale (19s cycle)
     val infiniteTransition = rememberInfiniteTransition(label = "gaugePulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
+        initialValue = 0.45f,
+        targetValue = 0.45f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
+            animation = keyframes {
+                durationMillis = 19000
+                0.45f at 0 using FastOutSlowInEasing        // start: lungs empty
+                1.0f at 4000 using LinearEasing              // 4s inhale → full
+                1.0f at 11000 using FastOutSlowInEasing      // 7s hold at peak
+                0.45f at 19000                               // 8s slow exhale → empty
+            },
+            repeatMode = RepeatMode.Restart,
         ),
         label = "pulseAlpha",
     )
@@ -438,13 +444,13 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
-                // Soft glow — 24 layers, smooth cubic falloff
+                // Soft glow — 24 layers, smooth cubic falloff, breathing
                 val glowSteps = 24
                 val maxSpread = 44.dp.toPx()
                 for (i in glowSteps downTo 1) {
                     val t = i.toFloat() / glowSteps
-                    val spread = maxSpread * t
-                    val alpha = 0.50f * (1f - t) * (1f - t) * (1f - t)
+                    val spread = maxSpread * t * pulseAlpha
+                    val alpha = 0.50f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
                     drawArc(
                         color = stressColor.copy(alpha = alpha),
                         startAngle = 135f,
