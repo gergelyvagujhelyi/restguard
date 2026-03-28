@@ -99,23 +99,6 @@ fun DashboardScreen(
                             ),
                             shape = topShape,
                         )
-                        .drawBehind {
-                            // Draw only top arc + side borders (no bottom line)
-                            val strokeWidth = 1.dp.toPx()
-                            val half = strokeWidth / 2
-                            val cornerRadius = 16.dp.toPx()
-                            val borderColor = DarkCardBorder
-                            // Top-left arc
-                            drawArc(borderColor, 180f, 90f, false, topLeft = Offset(half, half), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                            // Top-right arc
-                            drawArc(borderColor, 270f, 90f, false, topLeft = Offset(size.width - cornerRadius * 2 - half, half), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                            // Top edge
-                            drawLine(borderColor, Offset(cornerRadius, half), Offset(size.width - cornerRadius, half), strokeWidth)
-                            // Left edge
-                            drawLine(borderColor, Offset(half, cornerRadius), Offset(half, size.height), strokeWidth)
-                            // Right edge
-                            drawLine(borderColor, Offset(size.width - half, cornerRadius), Offset(size.width - half, size.height), strokeWidth)
-                        }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -145,54 +128,7 @@ fun DashboardScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .offset(y = (-13).dp) // overlap sticky header border
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                stressColor.copy(alpha = 0.08f),
-                                stressColor.copy(alpha = 0.03f),
-                            ),
-                        ),
-                        shape = bottomShape,
-                    )
-                    .drawBehind {
-                        // Draw only side and bottom borders (skip top to avoid double line)
-                        val strokeWidth = 1.dp.toPx()
-                        val half = strokeWidth / 2
-                        val cornerRadius = 16.dp.toPx()
-                        val borderColor = DarkCardBorder
-                        // Left edge
-                        drawLine(borderColor, Offset(half, 0f), Offset(half, size.height - cornerRadius), strokeWidth)
-                        // Right edge
-                        drawLine(borderColor, Offset(size.width - half, 0f), Offset(size.width - half, size.height - cornerRadius), strokeWidth)
-                        // Bottom arc left
-                        drawArc(borderColor, 90f, 90f, false, topLeft = Offset(half, size.height - cornerRadius * 2), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                        // Bottom arc right
-                        drawArc(borderColor, 0f, 90f, false, topLeft = Offset(size.width - cornerRadius * 2 - half, size.height - cornerRadius * 2), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                        // Bottom edge
-                        drawLine(borderColor, Offset(cornerRadius, size.height - half), Offset(size.width - cornerRadius, size.height - half), strokeWidth)
-                    }
-                    .padding(16.dp),
             ) {
-                // App header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "RestGuard",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "AI Wellbeing Co-Pilot",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary,
-                    )
-                }
-
                 // Circular gauge with glow
                 StressGauge(
                     score = state.currentStress?.score ?: 0,
