@@ -484,13 +484,6 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "${level.label} Stress",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = stressColor,
-        )
     }
 }
 
