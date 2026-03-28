@@ -172,14 +172,14 @@ fun DashboardScreen(
             ) {
                 MetricCard(
                     icon = Icons.Default.Favorite,
-                    iconColor = Color(0xFFEF5350),
+                    iconColor = Teal,
                     label = "HEART RATE",
                     value = health?.components?.let { "${72 + (it.physiological * 0.2).toInt()} bpm" } ?: "— bpm",
                     modifier = Modifier.weight(1f),
                 )
                 MetricCard(
                     icon = Icons.Default.MonitorHeart,
-                    iconColor = Color(0xFF7E57C2),
+                    iconColor = Teal,
                     label = "HRV",
                     value = health?.components?.let { "${(50 - it.physiological * 0.3).toInt()} ms" } ?: "— ms",
                     modifier = Modifier.weight(1f),
@@ -194,14 +194,14 @@ fun DashboardScreen(
             ) {
                 MetricCard(
                     icon = Icons.Default.Bedtime,
-                    iconColor = Color(0xFFFFCA28),
+                    iconColor = Teal,
                     label = "SLEEP QUALITY",
                     value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
                     modifier = Modifier.weight(1f),
                 )
                 MetricCard(
                     icon = Icons.Default.Bolt,
-                    iconColor = Color(0xFFFF7043),
+                    iconColor = Teal,
                     label = "RECOVERY",
                     value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
                     modifier = Modifier.weight(1f),
