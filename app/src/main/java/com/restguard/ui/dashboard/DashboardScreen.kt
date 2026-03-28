@@ -394,7 +394,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                             val t = i.toFloat() / (hazeStops - 1)
                             // Smooth falloff: full at center, fading to zero at edge
                             val fade = (1f - t) * (1f - t)
-                            val intensity = 0.20f * fade
+                            val intensity = 0.8f * fade
                             t to stressColor.copy(alpha = intensity * pulseAlpha)
                         },
                         center = center,
@@ -417,13 +417,13 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
-                // Soft glow — 24 layers, smooth cubic falloff, breathing
-                val glowSteps = 24
+                // Soft glow — 48 layers, wider spread, lighter near arc
+                val glowSteps = 34
                 val maxSpread = 48.dp.toPx()
                 for (i in glowSteps downTo 1) {
                     val t = i.toFloat() / glowSteps
                     val spread = maxSpread * t * pulseAlpha
-                    val alpha = 0.70f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
+                    val alpha = 0.30f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
                     drawArc(
                         color = stressColor.copy(alpha = alpha),
                         startAngle = 135f,
