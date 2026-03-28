@@ -10,28 +10,48 @@ val StressModerate = Color(0xFFFFC107)  // amber
 val StressHigh = Color(0xFFFF9800)      // orange
 val StressExtreme = Color(0xFFF44336)   // red
 
-val StressLowBg = Color(0xFFE8F5E9)
-val StressModerateBg = Color(0xFFFFF8E1)
-val StressHighBg = Color(0xFFFFF3E0)
-val StressExtremeBg = Color(0xFFFFEBEE)
+val StressLowBg = Color(0xFF1B3A2A)
+val StressModerateBg = Color(0xFF3A3520)
+val StressHighBg = Color(0xFF3A2A1B)
+val StressExtremeBg = Color(0xFF3A1B1B)
+
+// ─── Brand colors ───────────────────────────────────────────
+val Teal = Color(0xFF3CCBAA)
+val TealDark = Color(0xFF2BA88C)
+val DarkBg = Color(0xFF0F1419)
+val DarkSurface = Color(0xFF1A1F2B)
+val DarkCard = Color(0xFF222834)
+val DarkCardBorder = Color(0xFF2E3542)
+val TextPrimary = Color(0xFFE8ECF0)
+val TextSecondary = Color(0xFF8B95A5)
 
 // ─── App color scheme ───────────────────────────────────────
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF1565C0),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFBBDEFB),
-    secondary = Color(0xFF00897B),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFB2DFDB),
-    background = Color(0xFFFAFAFA),
-    surface = Color.White,
-    error = Color(0xFFD32F2F),
+private val DarkColors = darkColorScheme(
+    primary = Teal,
+    onPrimary = Color.Black,
+    primaryContainer = TealDark,
+    onPrimaryContainer = Color.White,
+    secondary = Teal,
+    onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF1E3A35),
+    onSecondaryContainer = Teal,
+    background = DarkBg,
+    onBackground = TextPrimary,
+    surface = DarkSurface,
+    onSurface = TextPrimary,
+    surfaceVariant = DarkCard,
+    onSurfaceVariant = TextSecondary,
+    outline = DarkCardBorder,
+    error = Color(0xFFEF5350),
+    onError = Color.White,
+    errorContainer = Color(0xFF3A1B1B),
+    onErrorContainer = Color(0xFFEF9A9A),
 )
 
 @Composable
 fun RestGuardTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = LightColors,
+        colorScheme = DarkColors,
         typography = Typography(),
         content = content,
     )

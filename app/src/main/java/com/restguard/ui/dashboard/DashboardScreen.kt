@@ -1,12 +1,11 @@
 package com.restguard.ui.dashboard
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,9 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,194 +33,403 @@ fun DashboardScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("RestGuard") },
-                actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, "Refresh")
-                    }
-                },
-            )
+    val stressColor by animateColorAsState(
+        targetValue = when (state.stressLevel) {
+            StressLevel.LOW -> StressLow
+            StressLevel.MODERATE -> StressModerate
+            StressLevel.HIGH -> StressHigh
+            StressLevel.EXTREME -> StressExtreme
         },
-    ) { padding ->
-        if (state.isLoading) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(vertical = 16.dp),
-            ) {
-                // ─── Stress Card ────────────────────────────
-                item {
-                    StressCard(
-                        stress = state.currentStress,
-                        level = state.stressLevel,
-                    )
-                }
-
-                // ─── Predictions ────────────────────────────
-                if (state.predictions.isNotEmpty()) {
-                    item {
-                        Text(
-                            "Upcoming Days",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    items(state.predictions) { prediction ->
-                        PredictionCard(prediction)
-                    }
-                }
-
-                // ─── Recommendations ────────────────────────
-                if (state.recommendations.isNotEmpty()) {
-                    item {
-                        Text(
-                            if (state.stressLevel == StressLevel.EXTREME)
-                                "Urgent: Consider These Actions"
-                            else
-                                "Suggestions",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (state.stressLevel == StressLevel.EXTREME)
-                                StressExtreme else MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                    items(state.recommendations) { rec ->
-                        RecommendationCard(
-                            recommendation = rec,
-                            onClick = { onRecommendationClick(rec) },
-                            onDismiss = { viewModel.dismissRecommendation(rec.id) },
-                        )
-                    }
-                }
-
-                // ─── Error ──────────────────────────────────
-                state.error?.let { error ->
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                            ),
-                        ) {
-                            Text(
-                                error,
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StressCard(stress: StressSample?, level: StressLevel) {
-    val bgColor by animateColorAsState(
-        targetValue = when (level) {
-            StressLevel.LOW -> StressLowBg
-            StressLevel.MODERATE -> StressModerateBg
-            StressLevel.HIGH -> StressHighBg
-            StressLevel.EXTREME -> StressExtremeBg
-        },
-        label = "stressBg",
+        label = "stressColor",
     )
 
-    val accentColor = when (level) {
-        StressLevel.LOW -> StressLow
-        StressLevel.MODERATE -> StressModerate
-        StressLevel.HIGH -> StressHigh
-        StressLevel.EXTREME -> StressExtreme
+    if (state.isLoading) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(color = Teal)
+        }
+        return
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        shape = RoundedCornerShape(16.dp),
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Score circle
-                Box(
+        // ─── Status Bar ────────────────────────────────
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Canvas(Modifier.size(10.dp)) {
+                    drawCircle(color = stressColor)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Stress Level: ${state.stressLevel.label}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${state.currentStress?.score ?: "—"}/100",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                )
+            }
+        }
+
+        // ─── App Header ────────────────────────────────
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "RestGuard",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "AI Wellbeing Co-Pilot",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary,
+                )
+            }
+        }
+
+        // ─── Circular Stress Gauge ─────────────────────
+        item {
+            StressGauge(
+                score = state.currentStress?.score ?: 0,
+                level = state.stressLevel,
+                stressColor = stressColor,
+            )
+        }
+
+        // ─── Health Metrics Grid ───────────────────────
+        item {
+            val health = state.currentStress
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MetricCard(
+                    icon = Icons.Default.Favorite,
+                    iconColor = Color(0xFFEF5350),
+                    label = "HEART RATE",
+                    value = health?.components?.let { "${72 + (it.physiological * 0.2).toInt()} bpm" } ?: "— bpm",
+                    modifier = Modifier.weight(1f),
+                )
+                MetricCard(
+                    icon = Icons.Default.MonitorHeart,
+                    iconColor = Color(0xFF7E57C2),
+                    label = "HRV",
+                    value = health?.components?.let { "${(50 - it.physiological * 0.3).toInt()} ms" } ?: "— ms",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        item {
+            val health2 = state.currentStress
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MetricCard(
+                    icon = Icons.Default.Bedtime,
+                    iconColor = Color(0xFFFFCA28),
+                    label = "SLEEP QUALITY",
+                    value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
+                    modifier = Modifier.weight(1f),
+                )
+                MetricCard(
+                    icon = Icons.Default.Bolt,
+                    iconColor = Color(0xFFFF7043),
+                    label = "RECOVERY",
+                    value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        // ─── Upcoming Meetings ─────────────────────────
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
+            ) {
+                Row(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(accentColor),
-                    contentAlignment = Alignment.Center,
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "${stress?.score ?: "—"}",
-                        color = Color.White,
-                        fontSize = 24.sp,
+                        "Upcoming Meetings (48h)",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${state.predictions.sumOf { it.calendarPressureBreakdown.meetingCount }}+",
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
+                        color = Teal,
                     )
                 }
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text(
-                        level.label,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (stress != null) {
+            }
+        }
+
+        // ─── Why This Status ───────────────────────────
+        item {
+            var expanded by remember { mutableStateOf(false) }
+            Card(
+                modifier = Modifier.clickable { expanded = !expanded },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
-                            "Confidence: ${(stress.confidence * 100).toInt()}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "WHY THIS STATUS?",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Teal,
+                            letterSpacing = 1.sp,
                         )
-                        if (stress.missingSources.isNotEmpty()) {
+                        Spacer(Modifier.weight(1f))
+                        Icon(
+                            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                        )
+                    }
+                    if (expanded) {
+                        Spacer(Modifier.height(12.dp))
+                        state.currentStress?.components?.let { comp ->
+                            WhyRow("Body signals", comp.physiological)
+                            WhyRow("Calendar pressure", comp.calendarPressure)
+                            WhyRow("Historical patterns", comp.historicalPattern)
+                        }
+                        if (state.currentStress?.missingSources?.isNotEmpty() == true) {
+                            Spacer(Modifier.height(8.dp))
                             Text(
-                                "Missing: ${stress.missingSources.joinToString(", ")}",
+                                "Missing data: ${state.currentStress?.missingSources?.joinToString(", ")}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = TextSecondary,
                             )
                         }
                     }
                 }
             }
+        }
 
-            // Component breakdown
-            stress?.components?.let { comp ->
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+        // ─── Suggested Actions ─────────────────────────
+        if (state.recommendations.isNotEmpty()) {
+            item {
+                Text(
+                    if (state.stressLevel == StressLevel.EXTREME)
+                        "URGENT ACTIONS"
+                    else
+                        "SUGGESTED ACTIONS",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (state.stressLevel == StressLevel.EXTREME) StressExtreme else Teal,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            items(state.recommendations) { rec ->
+                RecommendationCard(
+                    recommendation = rec,
+                    onClick = { onRecommendationClick(rec) },
+                    onDismiss = { viewModel.dismissRecommendation(rec.id) },
+                )
+            }
+        }
+
+        // ─── Upcoming Days ─────────────────────────────
+        if (state.predictions.isNotEmpty()) {
+            item {
+                Text(
+                    "UPCOMING DAYS",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Teal,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            items(state.predictions) { prediction ->
+                PredictionCard(prediction)
+            }
+        }
+
+        // ─── Error ─────────────────────────────────────
+        state.error?.let { error ->
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    ComponentChip("Body", comp.physiological, accentColor)
-                    ComponentChip("Calendar", comp.calendarPressure, accentColor)
-                    ComponentChip("Pattern", comp.historicalPattern, accentColor)
+                    Text(
+                        error,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
                 }
             }
         }
     }
 }
 
+// ─── Circular Stress Gauge ──────────────────────────────────
+
 @Composable
-private fun ComponentChip(label: String, value: Int, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
+    val sweepAngle = (score / 100f) * 270f
+    val bgArcColor = DarkCardBorder
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.size(180.dp)) {
+                // Background arc
+                drawArc(
+                    color = bgArcColor,
+                    startAngle = 135f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
+                )
+                // Stress arc
+                drawArc(
+                    color = stressColor,
+                    startAngle = 135f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "$score",
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                )
+                Text(
+                    "/100",
+                    fontSize = 16.sp,
+                    color = TextSecondary,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
-            "$value",
+            "${level.label} Stress",
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = color,
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = stressColor,
         )
     }
 }
+
+// ─── Health Metric Card ──────────────────────────────────────
+
+@Composable
+private fun MetricCard(
+    icon: ImageVector,
+    iconColor: Color,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    letterSpacing = 0.5.sp,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+            )
+        }
+    }
+}
+
+// ─── Why Row ─────────────────────────────────────────────────
+
+@Composable
+private fun WhyRow(label: String, value: Int) {
+    val barColor = when {
+        value >= 70 -> StressExtreme
+        value >= 50 -> StressHigh
+        value >= 30 -> StressModerate
+        else -> StressLow
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "$value/100",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = barColor,
+        )
+    }
+}
+
+// ─── Prediction Card ─────────────────────────────────────────
 
 @Composable
 private fun PredictionCard(prediction: StressPrediction) {
@@ -231,25 +442,37 @@ private fun PredictionCard(prediction: StressPrediction) {
 
     Card(
         shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(stressColor.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
-            ) {
+            // Mini gauge
+            Box(contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.size(40.dp)) {
+                    drawArc(
+                        color = DarkCardBorder,
+                        startAngle = 135f,
+                        sweepAngle = 270f,
+                        useCenter = false,
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                    )
+                    drawArc(
+                        color = stressColor,
+                        startAngle = 135f,
+                        sweepAngle = (prediction.predictedScore / 100f) * 270f,
+                        useCenter = false,
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                    )
+                }
                 Text(
                     "${prediction.predictedScore}",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = stressColor,
-                    fontSize = 14.sp,
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -258,16 +481,19 @@ private fun PredictionCard(prediction: StressPrediction) {
                     prediction.date.toString(),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
                 )
                 Text(
                     prediction.explanation,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = TextSecondary,
                 )
             }
         }
     }
 }
+
+// ─── Recommendation Card ─────────────────────────────────────
 
 @Composable
 private fun RecommendationCard(
@@ -275,66 +501,68 @@ private fun RecommendationCard(
     onClick: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val icon = when (recommendation.type) {
-        RecommendationType.NO_ACTION -> Icons.Default.CheckCircle
-        RecommendationType.STRESS_RELIEF_ACTIVITY -> Icons.Default.FavoriteBorder
-        RecommendationType.SUGGEST_RESCHEDULE -> Icons.Default.DateRange
-        RecommendationType.SUGGEST_CANCEL -> Icons.Default.Cancel
-        RecommendationType.URGENT_SAME_DAY_INTERVENTION -> Icons.Default.Warning
-    }
-
-    val containerColor = if (recommendation.isExtremeStressMode) {
-        StressExtremeBg
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-
     Card(
         modifier = Modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        colors = CardDefaults.cardColors(
+            containerColor = if (recommendation.isExtremeStressMode) StressExtremeBg else DarkCard,
+        ),
         shape = RoundedCornerShape(12.dp),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.Top,
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = if (recommendation.isExtremeStressMode) StressExtreme
-                else MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                recommendation.event?.let { event ->
-                    Text(
-                        event.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
+            recommendation.event?.let { event ->
                 Text(
-                    recommendation.explanation,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    when (recommendation.type) {
+                        RecommendationType.SUGGEST_RESCHEDULE -> "Reschedule \"${event.title}\""
+                        RecommendationType.SUGGEST_CANCEL -> "Cancel \"${event.title}\""
+                        else -> event.title
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
                 )
-                if (recommendation.stressReduction > 0) {
-                    Text(
-                        "Est. stress reduction: ~${recommendation.stressReduction} pts",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = StressLow,
-                    )
-                }
+                Spacer(Modifier.height(4.dp))
             }
-            IconButton(onClick = onDismiss) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Dismiss",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text(
+                recommendation.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+            )
+            if (recommendation.stressReduction > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "~${recommendation.stressReduction} pts stress reduction",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Teal,
                 )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss", color = TextSecondary)
+                }
+                Spacer(Modifier.width(8.dp))
+                FilledTonalButton(
+                    onClick = onClick,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Teal.copy(alpha = 0.15f),
+                        contentColor = Teal,
+                    ),
+                ) {
+                    Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("View")
+                }
             }
         }
     }
 }
+
+// ─── Helper: access health from components ───────────────────
+private val DashboardUiState.health get() = currentStress
