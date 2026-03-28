@@ -67,28 +67,44 @@ fun DashboardScreen(
         // ─── Sticky Status Line ───────────────────────
         stickyHeader {
             val topShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                stressColor.copy(alpha = 0.15f),
-                                stressColor.copy(alpha = 0.08f),
+            Box(modifier = Modifier.fillMaxWidth().background(DarkBg)) {
+                // Glow beneath the banner
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    stressColor.copy(alpha = 0.20f),
+                                    Color.Transparent,
+                                ),
                             ),
                         ),
-                        shape = topShape,
-                    )
-                    .background(DarkBg.copy(alpha = 0.85f), shape = topShape)
-                    .border(
-                        width = 1.dp,
-                        color = DarkCardBorder,
-                        shape = topShape,
-                    )
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Canvas(Modifier.size(10.dp)) {
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(DarkBg, shape = topShape)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    stressColor.copy(alpha = 0.18f),
+                                    stressColor.copy(alpha = 0.06f),
+                                ),
+                            ),
+                            shape = topShape,
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = DarkCardBorder,
+                            shape = topShape,
+                        )
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+            Canvas(Modifier.size(10.dp)) {
                     drawCircle(color = stressColor)
                 }
                 Spacer(Modifier.width(8.dp))
@@ -105,6 +121,7 @@ fun DashboardScreen(
                     color = TextSecondary,
                 )
             }
+            } // Box
         }
 
         // ─── Glassy Banner (header + gauge) ───────────
