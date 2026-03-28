@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,7 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.restguard.domain.model.*
 import com.restguard.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(
     onRecommendationClick: (Recommendation) -> Unit = {},
@@ -63,55 +64,72 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
     ) {
-        // ─── Glassy Status Banner ─────────────────────
-        item {
-            val glassShape = RoundedCornerShape(16.dp)
-            Column(
+        // ─── Sticky Status Line ───────────────────────
+        stickyHeader {
+            val topShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                stressColor.copy(alpha = 0.12f),
+                                stressColor.copy(alpha = 0.15f),
+                                stressColor.copy(alpha = 0.08f),
+                            ),
+                        ),
+                        shape = topShape,
+                    )
+                    .background(DarkBg.copy(alpha = 0.85f), shape = topShape)
+                    .border(
+                        width = 1.dp,
+                        color = DarkCardBorder,
+                        shape = topShape,
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Canvas(Modifier.size(10.dp)) {
+                    drawCircle(color = stressColor)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Stress Level: ${state.stressLevel.label}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${state.currentStress?.score ?: "—"}/100",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                )
+            }
+        }
+
+        // ─── Glassy Banner (header + gauge) ───────────
+        item {
+            val bottomShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = (-12).dp) // close gap to sticky header
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                stressColor.copy(alpha = 0.08f),
                                 stressColor.copy(alpha = 0.03f),
                             ),
                         ),
-                        shape = glassShape,
+                        shape = bottomShape,
                     )
                     .border(
                         width = 1.dp,
                         color = DarkCardBorder,
-                        shape = glassShape,
+                        shape = bottomShape,
                     )
                     .padding(16.dp),
             ) {
-                // Status bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Canvas(Modifier.size(10.dp)) {
-                        drawCircle(color = stressColor)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Stress Level: ${state.stressLevel.label}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "${state.currentStress?.score ?: "—"}/100",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary,
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = DarkCardBorder.copy(alpha = 0.5f))
-                Spacer(Modifier.height(12.dp))
-
                 // App header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
