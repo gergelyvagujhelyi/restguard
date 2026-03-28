@@ -206,7 +206,7 @@ private fun StressChart(samples: List<StressSample>, modifier: Modifier = Modifi
             // Stress line
             drawPath(
                 path = path,
-                color = Color(0xFF1565C0),
+                color = Color(0xFF42A5F5),
                 style = Stroke(width = 3f),
             )
 
