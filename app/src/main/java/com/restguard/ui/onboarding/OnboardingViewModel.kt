@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restguard.data.preferences.UserPreferences
+import com.restguard.ui.common.checkHealthConnectPermissions
 import com.restguard.ui.common.checkPermissions
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -38,10 +39,14 @@ class OnboardingViewModel @Inject constructor(
         val current = checkPermissions(context)
         _uiState.update {
             it.copy(
-                healthGranted = current.hasHealthConnect,
                 calendarGranted = current.hasCalendar,
                 notificationGranted = current.hasNotification,
             )
+        }
+        // Health Connect requires a suspend call to check actual granted permissions
+        viewModelScope.launch {
+            val healthGranted = checkHealthConnectPermissions(context)
+            _uiState.update { it.copy(healthGranted = healthGranted) }
         }
     }
 
