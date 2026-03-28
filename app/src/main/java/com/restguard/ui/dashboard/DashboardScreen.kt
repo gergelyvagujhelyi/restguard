@@ -90,9 +90,10 @@ fun DashboardScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
                     .zIndex(1f)
                     .graphicsLayer { alpha = collapseProgress }
+                    .background(DarkBg) // full-width opaque bg covers corner gaps
+                    .padding(horizontal = 16.dp)
                     .background(DarkBg, shape = topShape)
                     .background(
                         brush = Brush.verticalGradient(
@@ -104,21 +105,6 @@ fun DashboardScreen(
                         shape = topShape,
                     ),
             ) {
-                // Glow strip at bottom
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    stressColor.copy(alpha = 0.20f),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        ),
-                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
