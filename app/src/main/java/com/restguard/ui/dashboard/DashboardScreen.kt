@@ -4,12 +4,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,22 +16,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.restguard.domain.model.*
 import com.restguard.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onRecommendationClick: (Recommendation) -> Unit = {},
@@ -60,18 +60,51 @@ fun DashboardScreen(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+
+    // Track gauge item height for continuous scroll progress
+    var gaugeItemHeight by remember { mutableIntStateOf(1) }
+
+    // Continuous collapse progress: 0 = gauge fully visible, 1 = gauge fully scrolled off
+    val collapseProgress by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val gaugeItem = info.visibleItemsInfo.firstOrNull { it.index == 0 }
+                ?: return@derivedStateOf 1f // gauge not visible at all
+            val scrolledOff = -gaugeItem.offset.toFloat()
+            val height = gaugeItem.size.toFloat().coerceAtLeast(1f)
+            (scrolledOff / height).coerceIn(0f, 1f)
+        }
+    }
+
+    val bannerHeight = with(density) { 40.dp.toPx() }
+    val score = state.currentStress?.score ?: 0
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
     ) {
-        // ─── Sticky Status Line ───────────────────────
-        stickyHeader {
+        // ─── Collapsing Banner Overlay ────────────────
+        if (collapseProgress > 0f) {
             val topShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-            Box(modifier = Modifier.fillMaxWidth().background(DarkBg)) {
-                // Glow beneath the banner
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .zIndex(1f)
+                    .graphicsLayer { alpha = collapseProgress }
+                    .background(DarkBg, shape = topShape)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                stressColor.copy(alpha = 0.18f * collapseProgress),
+                                stressColor.copy(alpha = 0.06f * collapseProgress),
+                            ),
+                        ),
+                        shape = topShape,
+                    ),
+            ) {
+                // Glow strip at bottom
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -89,54 +122,58 @@ fun DashboardScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(DarkBg, shape = topShape)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    stressColor.copy(alpha = 0.18f),
-                                    stressColor.copy(alpha = 0.06f),
-                                ),
-                            ),
-                            shape = topShape,
-                        )
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-            Canvas(Modifier.size(10.dp)) {
-                    drawCircle(color = stressColor)
+                    Canvas(Modifier.size(10.dp)) {
+                        drawCircle(color = stressColor)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Stress Level: ${state.stressLevel.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "$score/100",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary,
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Stress Level: ${state.stressLevel.label}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "${state.currentStress?.score ?: "—"}/100",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
-                )
             }
-            } // Box
         }
 
-        // ─── Glassy Banner (header + gauge) ───────────
-        item {
-            val bottomShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-            ) {
-                // Circular gauge with glow
-                StressGauge(
-                    score = state.currentStress?.score ?: 0,
-                    level = state.stressLevel,
-                    stressColor = stressColor,
-                )
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+        ) {
+            // ─── Gauge item (collapses into banner) ───────
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { gaugeItemHeight = it.size.height },
+                ) {
+                    // Fade the arc as it scrolls off
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer { alpha = 1f - collapseProgress },
+                    ) {
+                        StressGauge(
+                            score = score,
+                            level = state.stressLevel,
+                            stressColor = stressColor,
+                        )
+                    }
+                }
             }
-        }
 
         // ─── Health Metrics Grid ───────────────────────
         item {
@@ -319,6 +356,7 @@ fun DashboardScreen(
             }
         }
     }
+    } // Box
 }
 
 // ─── Circular Stress Gauge ──────────────────────────────────
