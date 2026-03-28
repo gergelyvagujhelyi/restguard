@@ -419,7 +419,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
 
                 // Soft glow — 48 layers, wider spread, lighter near arc
                 val glowSteps = 34
-                val maxSpread = 48.dp.toPx()
+                val maxSpread = 34.dp.toPx()
                 for (i in glowSteps downTo 1) {
                     val t = i.toFloat() / glowSteps
                     val spread = maxSpread * t * pulseAlpha
