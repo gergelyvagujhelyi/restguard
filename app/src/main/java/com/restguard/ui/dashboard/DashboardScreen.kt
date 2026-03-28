@@ -355,15 +355,15 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     // 4-7-8 breathing glow: 4s inhale, 7s hold, 8s exhale (19s cycle)
     val infiniteTransition = rememberInfiniteTransition(label = "gaugePulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 0.45f,
+        initialValue = 0.15f,
+        targetValue = 0.15f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
                 durationMillis = 19000
-                0.45f at 0 using FastOutSlowInEasing        // start: lungs empty
-                1.0f at 4000 using LinearEasing              // 4s inhale → full
-                1.0f at 11000 using FastOutSlowInEasing      // 7s hold at peak
-                0.45f at 19000                               // 8s slow exhale → empty
+                0.15f at 0 using LinearEasing               // start: lungs empty
+                1.0f at 4000 using LinearEasing              // 4s steady inhale → full
+                1.0f at 11000 using LinearEasing             // 7s hold at peak
+                0.15f at 19000                               // 8s steady exhale → empty
             },
             repeatMode = RepeatMode.Restart,
         ),
@@ -384,14 +384,14 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            stressColor.copy(alpha = 0.05f * pulseAlpha),
-                            stressColor.copy(alpha = 0.18f * pulseAlpha),
-                            stressColor.copy(alpha = 0.25f * pulseAlpha),
-                            stressColor.copy(alpha = 0.10f * pulseAlpha),
+                            stressColor.copy(alpha = 0.08f * pulseAlpha),
+                            stressColor.copy(alpha = 0.30f * pulseAlpha),
+                            stressColor.copy(alpha = 0.40f * pulseAlpha),
+                            stressColor.copy(alpha = 0.15f * pulseAlpha),
                             Color.Transparent,
                         ),
                         center = center,
-                        radius = size.minDimension * 0.45f,
+                        radius = size.minDimension * 0.48f,
                     ),
                 )
 
@@ -406,11 +406,11 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
 
                 // Soft glow — 24 layers, smooth cubic falloff, breathing
                 val glowSteps = 24
-                val maxSpread = 44.dp.toPx()
+                val maxSpread = 48.dp.toPx()
                 for (i in glowSteps downTo 1) {
                     val t = i.toFloat() / glowSteps
                     val spread = maxSpread * t * pulseAlpha
-                    val alpha = 0.50f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
+                    val alpha = 0.70f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
                     drawArc(
                         color = stressColor.copy(alpha = alpha),
                         startAngle = 135f,
