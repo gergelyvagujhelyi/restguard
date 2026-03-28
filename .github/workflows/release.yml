@@ -96,5 +96,4 @@ jobs:
             | **SHA1**   | `${{ steps.checksums.outputs.sha1 }}` |
             | **SHA-256**| `${{ steps.checksums.outputs.sha256 }}` |
           files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/app-release.apk
