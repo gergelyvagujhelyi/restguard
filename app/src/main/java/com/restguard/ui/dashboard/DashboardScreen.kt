@@ -2,6 +2,8 @@ package com.restguard.ui.dashboard
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -60,61 +63,81 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
     ) {
-        // ─── Status Bar ────────────────────────────────
+        // ─── Glassy Status Banner ─────────────────────
         item {
-            Row(
+            val glassShape = RoundedCornerShape(16.dp)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                stressColor.copy(alpha = 0.12f),
+                                stressColor.copy(alpha = 0.03f),
+                            ),
+                        ),
+                        shape = glassShape,
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = DarkCardBorder,
+                        shape = glassShape,
+                    )
+                    .padding(16.dp),
             ) {
-                Canvas(Modifier.size(10.dp)) {
-                    drawCircle(color = stressColor)
+                // Status bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Canvas(Modifier.size(10.dp)) {
+                        drawCircle(color = stressColor)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Stress Level: ${state.stressLevel.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${state.currentStress?.score ?: "—"}/100",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary,
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Stress Level: ${state.stressLevel.label}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "${state.currentStress?.score ?: "—"}/100",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(color = DarkCardBorder.copy(alpha = 0.5f))
+                Spacer(Modifier.height(12.dp))
+
+                // App header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "RestGuard",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "AI Wellbeing Co-Pilot",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary,
+                    )
+                }
+
+                // Circular gauge with glow
+                StressGauge(
+                    score = state.currentStress?.score ?: 0,
+                    level = state.stressLevel,
+                    stressColor = stressColor,
                 )
             }
-        }
-
-        // ─── App Header ────────────────────────────────
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "RestGuard",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "AI Wellbeing Co-Pilot",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary,
-                )
-            }
-        }
-
-        // ─── Circular Stress Gauge ─────────────────────
-        item {
-            StressGauge(
-                score = state.currentStress?.score ?: 0,
-                level = state.stressLevel,
-                stressColor = stressColor,
-            )
         }
 
         // ─── Health Metrics Grid ───────────────────────
@@ -315,9 +338,26 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(180.dp)) {
+                // Outer glow — layered translucent arcs
+                val glowLayers = listOf(
+                    40.dp.toPx() to 0.04f,
+                    32.dp.toPx() to 0.06f,
+                    24.dp.toPx() to 0.08f,
+                    18.dp.toPx() to 0.12f,
+                )
+                for ((width, alpha) in glowLayers) {
+                    drawArc(
+                        color = stressColor.copy(alpha = alpha),
+                        startAngle = 135f,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        style = Stroke(width = width, cap = StrokeCap.Round),
+                    )
+                }
+                // Crisp gauge
                 // Background arc
                 drawArc(
-                    color = bgArcColor,
+                    color = bgArcColor.copy(alpha = 0.4f),
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
