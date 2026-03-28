@@ -381,17 +381,18 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                 val arcStroke = 7.dp.toPx()
 
                 // Ambient haze — pulsating warm glow filling the ring interior
+                val hazeRadius = size.minDimension * 0.48f
+                val hazeStops = 12
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(
-                            stressColor.copy(alpha = 0.08f * pulseAlpha),
-                            stressColor.copy(alpha = 0.30f * pulseAlpha),
-                            stressColor.copy(alpha = 0.40f * pulseAlpha),
-                            stressColor.copy(alpha = 0.15f * pulseAlpha),
-                            Color.Transparent,
-                        ),
+                        colorStops = Array(hazeStops) { i ->
+                            val t = i.toFloat() / (hazeStops - 1)
+                            // Bell-curve shape peaking around 60% radius
+                            val intensity = (4f * t * (1f - t)).let { it * it } * 0.40f
+                            t to stressColor.copy(alpha = intensity * pulseAlpha)
+                        },
                         center = center,
-                        radius = size.minDimension * 0.48f,
+                        radius = hazeRadius,
                     ),
                 )
 
