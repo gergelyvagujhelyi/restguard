@@ -16,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -377,18 +379,22 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(200.dp)) {
+            Canvas(modifier = Modifier.size(240.dp)) {
+                val canvasRadius = size.minDimension / 2f
+                val arcRadius = canvasRadius * (200f / 240f) // arc fits in 200dp area
                 val arcStroke = 7.dp.toPx()
+                val arcInset = canvasRadius - arcRadius
 
-                // Ambient haze — pulsating warm glow filling the ring interior
-                val hazeRadius = size.minDimension * 0.48f
-                val hazeStops = 12
+                // Ambient haze — pulsating glow from center, 20% beyond the arc
+                val hazeRadius = (arcRadius + arcStroke) * 1.20f
+                val hazeStops = 16
                 drawCircle(
                     brush = Brush.radialGradient(
                         colorStops = Array(hazeStops) { i ->
                             val t = i.toFloat() / (hazeStops - 1)
-                            // Bell-curve shape peaking around 60% radius
-                            val intensity = (4f * t * (1f - t)).let { it * it } * 0.40f
+                            // Smooth falloff: full at center, fading to zero at edge
+                            val fade = (1f - t) * (1f - t)
+                            val intensity = 0.20f * fade
                             t to stressColor.copy(alpha = intensity * pulseAlpha)
                         },
                         center = center,
@@ -396,12 +402,18 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     ),
                 )
 
+                // Arc area inset within the larger canvas
+                val arcAreaSize = Size(arcRadius * 2, arcRadius * 2)
+                val arcTopLeft = Offset(arcInset, arcInset)
+
                 // Background track
                 drawArc(
                     color = bgArcColor.copy(alpha = 0.35f),
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcAreaSize,
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
@@ -417,6 +429,8 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                         startAngle = 135f,
                         sweepAngle = sweepAngle,
                         useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcAreaSize,
                         style = Stroke(width = arcStroke + spread, cap = StrokeCap.Round),
                     )
                 }
@@ -427,6 +441,8 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     startAngle = 135f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcAreaSize,
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
