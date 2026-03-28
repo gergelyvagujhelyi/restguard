@@ -1,6 +1,7 @@
 package com.restguard.ui.dashboard
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -391,6 +392,18 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     val sweepAngle = (score / 100f) * 270f
     val bgArcColor = DarkCardBorder
 
+    // Slow pulsating glow
+    val infiniteTransition = rememberInfiniteTransition(label = "gaugePulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "pulseAlpha",
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -401,14 +414,14 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
             Canvas(modifier = Modifier.size(200.dp)) {
                 val arcStroke = 7.dp.toPx()
 
-                // Ambient haze — warm glow filling the ring interior
+                // Ambient haze — pulsating warm glow filling the ring interior
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            stressColor.copy(alpha = 0.05f),
-                            stressColor.copy(alpha = 0.18f),
-                            stressColor.copy(alpha = 0.25f),
-                            stressColor.copy(alpha = 0.10f),
+                            stressColor.copy(alpha = 0.05f * pulseAlpha),
+                            stressColor.copy(alpha = 0.18f * pulseAlpha),
+                            stressColor.copy(alpha = 0.25f * pulseAlpha),
+                            stressColor.copy(alpha = 0.10f * pulseAlpha),
                             Color.Transparent,
                         ),
                         center = center,
