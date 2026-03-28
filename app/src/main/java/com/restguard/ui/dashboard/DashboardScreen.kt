@@ -1,14 +1,14 @@
 package com.restguard.ui.dashboard
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,22 +16,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.restguard.domain.model.*
 import com.restguard.ui.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onRecommendationClick: (Recommendation) -> Unit = {},
@@ -59,147 +62,106 @@ fun DashboardScreen(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
-    ) {
-        // ─── Sticky Status Line ───────────────────────
-        stickyHeader {
-            val topShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-            Box(modifier = Modifier.fillMaxWidth().background(DarkBg)) {
-                // Glow beneath the banner
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    stressColor.copy(alpha = 0.20f),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        ),
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(DarkBg, shape = topShape)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    stressColor.copy(alpha = 0.18f),
-                                    stressColor.copy(alpha = 0.06f),
-                                ),
-                            ),
-                            shape = topShape,
-                        )
-                        .drawBehind {
-                            // Draw only top arc + side borders (no bottom line)
-                            val strokeWidth = 1.dp.toPx()
-                            val half = strokeWidth / 2
-                            val cornerRadius = 16.dp.toPx()
-                            val borderColor = DarkCardBorder
-                            // Top-left arc
-                            drawArc(borderColor, 180f, 90f, false, topLeft = Offset(half, half), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                            // Top-right arc
-                            drawArc(borderColor, 270f, 90f, false, topLeft = Offset(size.width - cornerRadius * 2 - half, half), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                            // Top edge
-                            drawLine(borderColor, Offset(cornerRadius, half), Offset(size.width - cornerRadius, half), strokeWidth)
-                            // Left edge
-                            drawLine(borderColor, Offset(half, cornerRadius), Offset(half, size.height), strokeWidth)
-                            // Right edge
-                            drawLine(borderColor, Offset(size.width - half, cornerRadius), Offset(size.width - half, size.height), strokeWidth)
-                        }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-            Canvas(Modifier.size(10.dp)) {
-                    drawCircle(color = stressColor)
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Stress Level: ${state.stressLevel.label}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "${state.currentStress?.score ?: "—"}/100",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
-                )
-            }
-            } // Box
-        }
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
 
-        // ─── Glassy Banner (header + gauge) ───────────
-        item {
-            val bottomShape = RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
-            Column(
+    // Track gauge item height for continuous scroll progress
+    var gaugeItemHeight by remember { mutableIntStateOf(1) }
+
+    // Continuous collapse progress: 0 = gauge fully visible, 1 = gauge fully scrolled off
+    val collapseProgress by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val gaugeItem = info.visibleItemsInfo.firstOrNull { it.index == 0 }
+                ?: return@derivedStateOf 1f // gauge not visible at all
+            val scrolledOff = -gaugeItem.offset.toFloat()
+            val height = gaugeItem.size.toFloat().coerceAtLeast(1f)
+            (scrolledOff / height).coerceIn(0f, 1f)
+        }
+    }
+
+    val bannerHeight = with(density) { 40.dp.toPx() }
+    val score = state.currentStress?.score ?: 0
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        // ─── Collapsing Banner Overlay ────────────────
+        if (collapseProgress > 0f) {
+            val topShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .offset(y = (-13).dp) // overlap sticky header border
+                    .zIndex(1f)
+                    .graphicsLayer { alpha = collapseProgress }
+                    .background(DarkBg) // full-width opaque bg covers corner gaps
+                    .padding(horizontal = 16.dp)
+                    .background(DarkBg, shape = topShape)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                stressColor.copy(alpha = 0.08f),
-                                stressColor.copy(alpha = 0.03f),
+                                stressColor.copy(alpha = 0.18f * collapseProgress),
+                                stressColor.copy(alpha = 0.06f * collapseProgress),
                             ),
                         ),
-                        shape = bottomShape,
-                    )
-                    .drawBehind {
-                        // Draw only side and bottom borders (skip top to avoid double line)
-                        val strokeWidth = 1.dp.toPx()
-                        val half = strokeWidth / 2
-                        val cornerRadius = 16.dp.toPx()
-                        val borderColor = DarkCardBorder
-                        // Left edge
-                        drawLine(borderColor, Offset(half, 0f), Offset(half, size.height - cornerRadius), strokeWidth)
-                        // Right edge
-                        drawLine(borderColor, Offset(size.width - half, 0f), Offset(size.width - half, size.height - cornerRadius), strokeWidth)
-                        // Bottom arc left
-                        drawArc(borderColor, 90f, 90f, false, topLeft = Offset(half, size.height - cornerRadius * 2), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                        // Bottom arc right
-                        drawArc(borderColor, 0f, 90f, false, topLeft = Offset(size.width - cornerRadius * 2 - half, size.height - cornerRadius * 2), size = androidx.compose.ui.geometry.Size(cornerRadius * 2, cornerRadius * 2), style = Stroke(strokeWidth))
-                        // Bottom edge
-                        drawLine(borderColor, Offset(cornerRadius, size.height - half), Offset(size.width - cornerRadius, size.height - half), strokeWidth)
-                    }
-                    .padding(16.dp),
+                        shape = topShape,
+                    ),
             ) {
-                // App header
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Canvas(Modifier.size(10.dp)) {
+                        drawCircle(color = stressColor)
+                    }
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        "RestGuard",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
+                        "Stress Level: ${state.stressLevel.label}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        "AI Wellbeing Co-Pilot",
-                        style = MaterialTheme.typography.labelMedium,
+                        "$score/100",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextSecondary,
                     )
                 }
-
-                // Circular gauge with glow
-                StressGauge(
-                    score = state.currentStress?.score ?: 0,
-                    level = state.stressLevel,
-                    stressColor = stressColor,
-                )
             }
         }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+        ) {
+            // ─── Gauge item (collapses into banner) ───────
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { gaugeItemHeight = it.size.height },
+                ) {
+                    // Fade the arc as it scrolls off
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer { alpha = 1f - collapseProgress },
+                    ) {
+                        StressGauge(
+                            score = score,
+                            level = state.stressLevel,
+                            stressColor = stressColor,
+                        )
+                    }
+                }
+            }
 
         // ─── Health Metrics Grid ───────────────────────
         item {
@@ -210,14 +172,14 @@ fun DashboardScreen(
             ) {
                 MetricCard(
                     icon = Icons.Default.Favorite,
-                    iconColor = Color(0xFFEF5350),
+                    iconColor = Teal,
                     label = "HEART RATE",
                     value = health?.components?.let { "${72 + (it.physiological * 0.2).toInt()} bpm" } ?: "— bpm",
                     modifier = Modifier.weight(1f),
                 )
                 MetricCard(
                     icon = Icons.Default.MonitorHeart,
-                    iconColor = Color(0xFF7E57C2),
+                    iconColor = Teal,
                     label = "HRV",
                     value = health?.components?.let { "${(50 - it.physiological * 0.3).toInt()} ms" } ?: "— ms",
                     modifier = Modifier.weight(1f),
@@ -232,14 +194,14 @@ fun DashboardScreen(
             ) {
                 MetricCard(
                     icon = Icons.Default.Bedtime,
-                    iconColor = Color(0xFFFFCA28),
+                    iconColor = Teal,
                     label = "SLEEP QUALITY",
                     value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
                     modifier = Modifier.weight(1f),
                 )
                 MetricCard(
                     icon = Icons.Default.Bolt,
-                    iconColor = Color(0xFFFF7043),
+                    iconColor = Teal,
                     label = "RECOVERY",
                     value = health2?.components?.let { "${100 - it.physiological}/100" } ?: "—/100",
                     modifier = Modifier.weight(1f),
@@ -382,6 +344,7 @@ fun DashboardScreen(
             }
         }
     }
+    } // Box
 }
 
 // ─── Circular Stress Gauge ──────────────────────────────────
@@ -391,6 +354,24 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     val sweepAngle = (score / 100f) * 270f
     val bgArcColor = DarkCardBorder
 
+    // 4-7-8 breathing glow: 4s inhale, 7s hold, 8s exhale (19s cycle)
+    val infiniteTransition = rememberInfiniteTransition(label = "gaugePulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.15f,
+        targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 19000
+                0.15f at 0 using LinearEasing               // start: lungs empty
+                1.0f at 4000 using LinearEasing              // 4s steady inhale → full
+                1.0f at 11000 using LinearEasing             // 7s hold at peak
+                0.15f at 19000                               // 8s steady exhale → empty
+            },
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "pulseAlpha",
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -398,40 +379,73 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(180.dp)) {
-                // Outer glow — layered translucent arcs
-                val glowLayers = listOf(
-                    40.dp.toPx() to 0.04f,
-                    32.dp.toPx() to 0.06f,
-                    24.dp.toPx() to 0.08f,
-                    18.dp.toPx() to 0.12f,
+            Canvas(modifier = Modifier.size(240.dp)) {
+                val canvasRadius = size.minDimension / 2f
+                val arcRadius = canvasRadius * (200f / 240f) // arc fits in 200dp area
+                val arcStroke = 7.dp.toPx()
+                val arcInset = canvasRadius - arcRadius
+
+                // Ambient haze — pulsating glow from center, 20% beyond the arc
+                val hazeRadius = (arcRadius + arcStroke) * 1.20f
+                val hazeStops = 16
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colorStops = Array(hazeStops) { i ->
+                            val t = i.toFloat() / (hazeStops - 1)
+                            // Smooth falloff: full at center, fading to zero at edge
+                            val fade = (1f - t) * (1f - t)
+                            val intensity = 0.8f * fade
+                            t to stressColor.copy(alpha = intensity * pulseAlpha)
+                        },
+                        center = center,
+                        radius = hazeRadius,
+                    ),
                 )
-                for ((width, alpha) in glowLayers) {
+
+                // Arc area inset within the larger canvas
+                val arcAreaSize = Size(arcRadius * 2, arcRadius * 2)
+                val arcTopLeft = Offset(arcInset, arcInset)
+
+                // Background track
+                drawArc(
+                    color = bgArcColor.copy(alpha = 0.35f),
+                    startAngle = 135f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcAreaSize,
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
+                )
+
+                // Soft glow — 48 layers, wider spread, lighter near arc
+                val glowSteps = 34
+                val maxSpread = 34.dp.toPx()
+                for (i in glowSteps downTo 1) {
+                    val t = i.toFloat() / glowSteps
+                    val spread = maxSpread * t * pulseAlpha
+                    val alpha = 0.30f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
                     drawArc(
                         color = stressColor.copy(alpha = alpha),
                         startAngle = 135f,
                         sweepAngle = sweepAngle,
                         useCenter = false,
-                        style = Stroke(width = width, cap = StrokeCap.Round),
+                        topLeft = arcTopLeft,
+                        size = arcAreaSize,
+                        style = Stroke(width = arcStroke + spread, cap = StrokeCap.Round),
                     )
                 }
-                // Crisp gauge
-                // Background arc
-                drawArc(
-                    color = bgArcColor.copy(alpha = 0.4f),
-                    startAngle = 135f,
-                    sweepAngle = 270f,
-                    useCenter = false,
-                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
-                )
-                // Stress arc
+
+                // Bright core arc
                 drawArc(
                     color = stressColor,
                     startAngle = 135f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
-                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
+                    topLeft = arcTopLeft,
+                    size = arcAreaSize,
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
+
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -447,13 +461,6 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "${level.label} Stress",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = stressColor,
-        )
     }
 }
 

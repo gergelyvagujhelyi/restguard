@@ -51,8 +51,24 @@ fun checkPermissions(context: Context): PermissionState {
         hasNotification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
         } else true,
+        // SDK availability only — use checkHealthConnectPermissions() for actual grant status
         hasHealthConnect = HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE,
     )
+}
+
+/**
+ * Check whether the app has been granted Health Connect read permissions.
+ * Returns true only if at least one health permission is actually granted.
+ */
+suspend fun checkHealthConnectPermissions(context: Context): Boolean {
+    if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return false
+    return try {
+        val client = HealthConnectClient.getOrCreate(context)
+        val granted = client.permissionController.getGrantedPermissions()
+        granted.containsAll(HEALTH_PERMISSIONS)
+    } catch (_: Exception) {
+        false
+    }
 }
 
 private fun hasPermission(context: Context, permission: String): Boolean {
