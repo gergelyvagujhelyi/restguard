@@ -424,29 +424,21 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
-                // Drop shadow — wider, softer arc behind the progress
-                // (matches stress-copilot: drop-shadow(0 0 6px color))
-                drawArc(
-                    color = stressColor.copy(alpha = 0.5f),
-                    startAngle = 135f,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    style = Stroke(width = arcStroke + 10.dp.toPx(), cap = StrokeCap.Round),
-                )
-                drawArc(
-                    color = stressColor.copy(alpha = 0.2f),
-                    startAngle = 135f,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    style = Stroke(width = arcStroke + 20.dp.toPx(), cap = StrokeCap.Round),
-                )
-                drawArc(
-                    color = stressColor.copy(alpha = 0.07f),
-                    startAngle = 135f,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    style = Stroke(width = arcStroke + 34.dp.toPx(), cap = StrokeCap.Round),
-                )
+                // Smooth glow — many fine layers for gradient falloff
+                val glowSteps = 20
+                val maxSpread = 36.dp.toPx()
+                for (i in glowSteps downTo 1) {
+                    val t = i.toFloat() / glowSteps
+                    val spread = maxSpread * t
+                    val alpha = 0.45f * (1f - t) * (1f - t) // quadratic ease-in
+                    drawArc(
+                        color = stressColor.copy(alpha = alpha),
+                        startAngle = 135f,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        style = Stroke(width = arcStroke + spread, cap = StrokeCap.Round),
+                    )
+                }
 
                 // Crisp progress arc
                 drawArc(
