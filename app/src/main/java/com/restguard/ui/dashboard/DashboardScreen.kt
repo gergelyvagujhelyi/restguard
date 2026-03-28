@@ -399,38 +399,62 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(180.dp)) {
-                // Outer glow — layered translucent arcs
-                val glowLayers = listOf(
-                    40.dp.toPx() to 0.04f,
-                    32.dp.toPx() to 0.06f,
-                    24.dp.toPx() to 0.08f,
-                    18.dp.toPx() to 0.12f,
+                val arcStroke = 8.dp.toPx()
+
+                // Ambient glow — blurred colored circle behind gauge
+                // (matches stress-copilot: blur-xl opacity-30 div)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            stressColor.copy(alpha = 0.30f),
+                            stressColor.copy(alpha = 0.15f),
+                            Color.Transparent,
+                        ),
+                        center = center,
+                        radius = size.minDimension / 2,
+                    ),
                 )
-                for ((width, alpha) in glowLayers) {
-                    drawArc(
-                        color = stressColor.copy(alpha = alpha),
-                        startAngle = 135f,
-                        sweepAngle = sweepAngle,
-                        useCenter = false,
-                        style = Stroke(width = width, cap = StrokeCap.Round),
-                    )
-                }
-                // Crisp gauge
-                // Background arc
+
+                // Background track — full ring at 40% opacity
                 drawArc(
                     color = bgArcColor.copy(alpha = 0.4f),
                     startAngle = 135f,
                     sweepAngle = 270f,
                     useCenter = false,
-                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
-                // Stress arc
+
+                // Drop shadow — wider, softer arc behind the progress
+                // (matches stress-copilot: drop-shadow(0 0 6px color))
+                drawArc(
+                    color = stressColor.copy(alpha = 0.5f),
+                    startAngle = 135f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(width = arcStroke + 10.dp.toPx(), cap = StrokeCap.Round),
+                )
+                drawArc(
+                    color = stressColor.copy(alpha = 0.2f),
+                    startAngle = 135f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(width = arcStroke + 20.dp.toPx(), cap = StrokeCap.Round),
+                )
+                drawArc(
+                    color = stressColor.copy(alpha = 0.07f),
+                    startAngle = 135f,
+                    sweepAngle = sweepAngle,
+                    useCenter = false,
+                    style = Stroke(width = arcStroke + 34.dp.toPx(), cap = StrokeCap.Round),
+                )
+
+                // Crisp progress arc
                 drawArc(
                     color = stressColor,
                     startAngle = 135f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
-                    style = Stroke(width = 14.dp.toPx(), cap = StrokeCap.Round),
+                    style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
