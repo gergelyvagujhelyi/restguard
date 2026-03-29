@@ -169,8 +169,57 @@ class CalendarProviderRepository(
     }
 
     private fun parseInstance(cursor: Cursor): CalendarEvent? {
-        // Same columns as parseEvent but from Instances table (EVENT_ID instead of _ID)
-        return parseEvent(cursor)
+        return try {
+            val id = cursor.getLong(0).toString()
+            val calendarId = cursor.getString(1) ?: return null
+            val title = cursor.getString(2) ?: "(No title)"
+            val description = cursor.getString(3)
+            val location = cursor.getString(4)
+            val dtStart = cursor.getLong(5)
+            val dtEnd = if (cursor.isNull(6)) dtStart + 3600000 else cursor.getLong(6).let { if (it == 0L) dtStart + 3600000 else it }
+            val allDay = cursor.getInt(7) == 1
+            val rrule = cursor.getString(8)
+            val organizer = cursor.getString(9)
+            val selfStatus = if (cursor.isNull(10)) 0 else cursor.getInt(10)
+            val status = if (cursor.isNull(11)) 0 else cursor.getInt(11)
+            val availability = if (cursor.isNull(12)) 0 else cursor.getInt(12)
+
+            val zone = ZoneId.systemDefault()
+            val startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(dtStart), zone)
+            val endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(dtEnd), zone)
+
+            val attendees = try { queryAttendees(id.toLong()) } catch (_: Exception) { emptyList() }
+
+            CalendarEvent(
+                id = id,
+                calendarId = calendarId,
+                title = title,
+                description = description,
+                location = location,
+                startTime = startTime,
+                endTime = endTime,
+                isAllDay = allDay,
+                isRecurring = rrule != null,
+                recurrenceRule = rrule,
+                organizerEmail = organizer,
+                selfIsOrganizer = attendees.any { it.isSelf && it.isOrganizer },
+                attendees = attendees,
+                status = when (status) {
+                    CalendarContract.Events.STATUS_CONFIRMED -> EventStatus.CONFIRMED
+                    CalendarContract.Events.STATUS_TENTATIVE -> EventStatus.TENTATIVE
+                    CalendarContract.Events.STATUS_CANCELED -> EventStatus.CANCELLED
+                    else -> EventStatus.CONFIRMED
+                },
+                availability = when (availability) {
+                    CalendarContract.Events.AVAILABILITY_BUSY -> EventAvailability.BUSY
+                    CalendarContract.Events.AVAILABILITY_FREE -> EventAvailability.FREE
+                    CalendarContract.Events.AVAILABILITY_TENTATIVE -> EventAvailability.TENTATIVE
+                    else -> EventAvailability.BUSY
+                },
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun parseEvent(cursor: Cursor): CalendarEvent? {
