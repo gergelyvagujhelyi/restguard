@@ -177,12 +177,12 @@ class CalendarProviderRepository(
 
     private fun parseInstance(cursor: Cursor): CalendarEvent? {
         return try {
-            val id = cursor.getLong(0).toString()
-            val calendarId = cursor.getString(1) ?: return null
+            val id = if (cursor.isNull(0)) "0" else cursor.getLong(0).toString()
+            val calendarId = cursor.getString(1) ?: "unknown"
             val title = cursor.getString(2) ?: "(No title)"
             val description = cursor.getString(3)
             val location = cursor.getString(4)
-            val dtStart = cursor.getLong(5)
+            val dtStart = if (cursor.isNull(5)) return null else cursor.getLong(5)
             val dtEnd = if (cursor.isNull(6)) dtStart + 3600000 else cursor.getLong(6).let { if (it == 0L) dtStart + 3600000 else it }
             val allDay = if (cursor.isNull(7)) false else cursor.getInt(7) == 1
             val rrule = cursor.getString(8)
