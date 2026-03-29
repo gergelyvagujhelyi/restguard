@@ -46,17 +46,17 @@ class CalendarProviderRepository(
     )
 
     private val instanceProjection = arrayOf(
-        CalendarContract.Instances.EVENT_ID,
-        CalendarContract.Instances.CALENDAR_ID,
-        CalendarContract.Instances.TITLE,
-        CalendarContract.Instances.DESCRIPTION,
-        CalendarContract.Instances.EVENT_LOCATION,
-        CalendarContract.Instances.DTSTART,         // instance start
-        CalendarContract.Instances.DTEND,            // instance end
-        CalendarContract.Instances.ALL_DAY,
-        CalendarContract.Instances.RRULE,
-        CalendarContract.Instances.ORGANIZER,
-        CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+        CalendarContract.Instances.EVENT_ID,         // 0
+        CalendarContract.Instances.CALENDAR_ID,      // 1
+        CalendarContract.Instances.TITLE,            // 2
+        CalendarContract.Instances.DESCRIPTION,      // 3
+        CalendarContract.Instances.EVENT_LOCATION,   // 4
+        CalendarContract.Instances.BEGIN,             // 5 — instance start (not DTSTART)
+        CalendarContract.Instances.END,              // 6 — instance end (not DTEND)
+        CalendarContract.Instances.ALL_DAY,          // 7
+        CalendarContract.Instances.RRULE,            // 8
+        CalendarContract.Instances.ORGANIZER,        // 9
+        CalendarContract.Instances.SELF_ATTENDEE_STATUS, // 10
         CalendarContract.Instances.STATUS,
         CalendarContract.Instances.AVAILABILITY,
     )
@@ -154,7 +154,7 @@ class CalendarProviderRepository(
             instanceProjection,
             null,
             null,
-            "${CalendarContract.Instances.DTSTART} ASC",
+            "${CalendarContract.Instances.BEGIN} ASC",
         )
 
         val events = mutableListOf<CalendarEvent>()
