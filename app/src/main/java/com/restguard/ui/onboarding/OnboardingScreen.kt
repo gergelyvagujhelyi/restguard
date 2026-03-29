@@ -44,6 +44,7 @@ fun OnboardingScreen(
     val requestHealthPermissions = rememberHealthConnectPermissionLauncher { granted ->
         viewModel.onPermissionResult(PermissionType.HEALTH, granted.isNotEmpty())
     }
+    val healthConnectAvailable = requestHealthPermissions != null
 
     val requestStandardPermissions = rememberMultiplePermissionLauncher { results ->
         val calendarGranted = results[Manifest.permission.READ_CALENDAR] == true &&
@@ -113,7 +114,7 @@ fun OnboardingScreen(
                     page = pages[page],
                     onRequestPermission = { type ->
                         when (type) {
-                            PermissionType.HEALTH -> requestHealthPermissions()
+                            PermissionType.HEALTH -> requestHealthPermissions?.invoke()
                             PermissionType.CALENDAR -> requestStandardPermissions(
                                 arrayOf(
                                     Manifest.permission.READ_CALENDAR,
@@ -141,6 +142,7 @@ fun OnboardingScreen(
                         PermissionType.CONTACTS -> false
                         null -> false
                     },
+                    isUnavailable = pages[page].permissionType == PermissionType.HEALTH && !healthConnectAvailable,
                 )
             }
 
@@ -191,6 +193,7 @@ private fun OnboardingPageContent(
     page: OnboardingPage,
     onRequestPermission: (PermissionType) -> Unit,
     isPermissionGranted: Boolean,
+    isUnavailable: Boolean = false,
 ) {
     Column(
         modifier = Modifier
@@ -222,17 +225,29 @@ private fun OnboardingPageContent(
 
         page.permissionType?.let { type ->
             Spacer(Modifier.height(24.dp))
-            if (isPermissionGranted) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text("Granted") },
-                    leadingIcon = {
-                        Icon(Icons.Default.CheckCircle, null, tint = StressLow)
-                    },
-                )
-            } else {
-                OutlinedButton(onClick = { onRequestPermission(type) }) {
-                    Text("Grant Permission")
+            when {
+                isUnavailable -> {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("Health Connect not installed") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                    )
+                }
+                isPermissionGranted -> {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("Granted") },
+                        leadingIcon = {
+                            Icon(Icons.Default.CheckCircle, null, tint = StressLow)
+                        },
+                    )
+                }
+                else -> {
+                    OutlinedButton(onClick = { onRequestPermission(type) }) {
+                        Text("Grant Permission")
+                    }
                 }
             }
         }
