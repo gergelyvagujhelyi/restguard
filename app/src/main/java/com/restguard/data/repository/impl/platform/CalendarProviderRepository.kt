@@ -158,11 +158,18 @@ class CalendarProviderRepository(
         )
 
         val events = mutableListOf<CalendarEvent>()
+        android.util.Log.d("CalendarRepo", "Instances query: cursor=${cursor != null}, count=${cursor?.count ?: 0}")
         cursor?.use {
             while (it.moveToNext()) {
-                parseInstance(it)?.let { event -> events.add(event) }
+                val parsed = parseInstance(it)
+                if (parsed != null) {
+                    events.add(parsed)
+                } else {
+                    android.util.Log.w("CalendarRepo", "Failed to parse instance at row ${it.position}")
+                }
             }
         }
+        android.util.Log.d("CalendarRepo", "Parsed ${events.size} events from ${startMillis}..${endMillis}")
 
         _eventsFlow.value = events
         return events
@@ -177,7 +184,7 @@ class CalendarProviderRepository(
             val location = cursor.getString(4)
             val dtStart = cursor.getLong(5)
             val dtEnd = if (cursor.isNull(6)) dtStart + 3600000 else cursor.getLong(6).let { if (it == 0L) dtStart + 3600000 else it }
-            val allDay = cursor.getInt(7) == 1
+            val allDay = if (cursor.isNull(7)) false else cursor.getInt(7) == 1
             val rrule = cursor.getString(8)
             val organizer = cursor.getString(9)
             val selfStatus = if (cursor.isNull(10)) 0 else cursor.getInt(10)
