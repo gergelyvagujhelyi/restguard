@@ -52,8 +52,16 @@ fun checkPermissions(context: Context): PermissionState {
             hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
         } else true,
         // SDK availability only — use checkHealthConnectPermissions() for actual grant status
-        hasHealthConnect = HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE,
+        hasHealthConnect = isHealthConnectAvailable(context),
     )
+}
+
+fun isHealthConnectAvailable(context: Context): Boolean {
+    return try {
+        HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
+    } catch (_: Exception) {
+        false
+    }
 }
 
 /**
@@ -61,7 +69,7 @@ fun checkPermissions(context: Context): PermissionState {
  * Returns true only if at least one health permission is actually granted.
  */
 suspend fun checkHealthConnectPermissions(context: Context): Boolean {
-    if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) return false
+    if (!isHealthConnectAvailable(context)) return false
     return try {
         val client = HealthConnectClient.getOrCreate(context)
         val granted = client.permissionController.getGrantedPermissions()
@@ -92,7 +100,10 @@ val HEALTH_PERMISSIONS = setOf(
 @Composable
 fun rememberHealthConnectPermissionLauncher(
     onResult: (Set<String>) -> Unit,
-): () -> Unit {
+): (() -> Unit)? {
+    val context = LocalContext.current
+    if (!isHealthConnectAvailable(context)) return null
+
     val contract = PermissionController.createRequestPermissionResultContract()
     val launcher = rememberLauncherForActivityResult(contract) { granted ->
         onResult(granted)
