@@ -45,6 +45,22 @@ class CalendarProviderRepository(
         CalendarContract.Events.AVAILABILITY,
     )
 
+    private val instanceProjection = arrayOf(
+        CalendarContract.Instances.EVENT_ID,
+        CalendarContract.Instances.CALENDAR_ID,
+        CalendarContract.Instances.TITLE,
+        CalendarContract.Instances.DESCRIPTION,
+        CalendarContract.Instances.EVENT_LOCATION,
+        CalendarContract.Instances.DTSTART,         // instance start
+        CalendarContract.Instances.DTEND,            // instance end
+        CalendarContract.Instances.ALL_DAY,
+        CalendarContract.Instances.RRULE,
+        CalendarContract.Instances.ORGANIZER,
+        CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+        CalendarContract.Instances.STATUS,
+        CalendarContract.Instances.AVAILABILITY,
+    )
+
     private val attendeeProjection = arrayOf(
         CalendarContract.Attendees.ATTENDEE_EMAIL,
         CalendarContract.Attendees.ATTENDEE_NAME,
@@ -128,27 +144,33 @@ class CalendarProviderRepository(
     // ─── Query helpers ──────────────────────────────────────
 
     private fun queryEvents(startMillis: Long, endMillis: Long): List<CalendarEvent> {
-        val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
-        val selectionArgs = arrayOf(startMillis.toString(), endMillis.toString())
-        val sortOrder = "${CalendarContract.Events.DTSTART} ASC"
+        // Use Instances table to include recurring event occurrences
+        val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
+        ContentUris.appendId(builder, startMillis)
+        ContentUris.appendId(builder, endMillis)
 
         val cursor = contentResolver.query(
-            CalendarContract.Events.CONTENT_URI,
-            eventProjection,
-            selection,
-            selectionArgs,
-            sortOrder,
+            builder.build(),
+            instanceProjection,
+            null,
+            null,
+            "${CalendarContract.Instances.DTSTART} ASC",
         )
 
         val events = mutableListOf<CalendarEvent>()
         cursor?.use {
             while (it.moveToNext()) {
-                parseEvent(it)?.let { event -> events.add(event) }
+                parseInstance(it)?.let { event -> events.add(event) }
             }
         }
 
         _eventsFlow.value = events
         return events
+    }
+
+    private fun parseInstance(cursor: Cursor): CalendarEvent? {
+        // Same columns as parseEvent but from Instances table (EVENT_ID instead of _ID)
+        return parseEvent(cursor)
     }
 
     private fun parseEvent(cursor: Cursor): CalendarEvent? {
