@@ -146,7 +146,7 @@ class StressScoringService @Inject constructor(
         val zone = ZoneId.systemDefault()
         val historicalImpacts = stressRepo.getAllMeetingStressImpacts()
 
-        return (1..days).map { offset ->
+        return (0 until days).map { offset ->
             val date = today.plusDays(offset.toLong())
             val events = calendarRepo.getEventsForDate(date)
             val calendarPressure = computeCalendarPressure(events)
