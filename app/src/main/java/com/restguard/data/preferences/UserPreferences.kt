@@ -38,6 +38,10 @@ class UserPreferences(private val context: Context) {
 
         // Privacy
         val KEY_DATA_RETENTION_DAYS = intPreferencesKey("data_retention_days")
+
+        // Calendar selection (comma-separated IDs; empty = all)
+        val KEY_SELECTED_CALENDAR_IDS = stringPreferencesKey("selected_calendar_ids")
+        private const val NONE_SENTINEL = "__none__"
     }
 
     val isOnboardingComplete: Flow<Boolean> = context.dataStore.data
@@ -61,6 +65,18 @@ class UserPreferences(private val context: Context) {
     val extremeThreshold: Flow<Int> = context.dataStore.data
         .map { it[KEY_EXTREME_THRESHOLD] ?: 80 }
 
+    /** null = all calendars (default); empty set = none selected; non-empty = only these */
+    val selectedCalendarIds: Flow<Set<String>?> = context.dataStore.data
+        .map { prefs ->
+            val raw = prefs[KEY_SELECTED_CALENDAR_IDS]
+            when {
+                raw == null -> null // never configured = all
+                raw == NONE_SENTINEL -> emptySet()
+                raw.isBlank() -> null
+                else -> raw.split(",").toSet()
+            }
+        }
+
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { it[KEY_ONBOARDING_COMPLETE] = complete }
     }
@@ -82,6 +98,17 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setDataRetentionDays(days: Int) {
         context.dataStore.edit { it[KEY_DATA_RETENTION_DAYS] = days }
+    }
+
+    /** null = all calendars; empty set = none; non-empty = specific IDs */
+    suspend fun setSelectedCalendarIds(ids: Set<String>?) {
+        context.dataStore.edit {
+            it[KEY_SELECTED_CALENDAR_IDS] = when {
+                ids == null -> ""
+                ids.isEmpty() -> NONE_SENTINEL
+                else -> ids.joinToString(",")
+            }
+        }
     }
 
     suspend fun setPermissionGranted(health: Boolean? = null, calendar: Boolean? = null, notification: Boolean? = null) {

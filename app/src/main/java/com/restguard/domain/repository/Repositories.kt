@@ -19,6 +19,7 @@ interface HealthRepository {
  * Calendar data access — backed by CalendarProvider or mock.
  */
 interface CalendarRepository {
+    suspend fun getAvailableCalendars(): List<CalendarInfo>
     suspend fun getEvents(from: ZonedDateTime, to: ZonedDateTime): List<CalendarEvent>
     suspend fun getEventById(id: String): CalendarEvent?
     suspend fun getEventsForDate(date: LocalDate): List<CalendarEvent>

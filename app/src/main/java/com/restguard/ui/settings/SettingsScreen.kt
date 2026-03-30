@@ -33,6 +33,8 @@ data class SettingsUiState(
     val isExporting: Boolean = false,
     val isDeleting: Boolean = false,
     val dataDeleted: Boolean = false,
+    val availableCalendars: List<com.restguard.domain.model.CalendarInfo> = emptyList(),
+    val selectedCalendarIds: Set<String>? = null, // null = all, empty = none
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -191,6 +193,80 @@ fun SettingsScreen(
                             steps = 6,
                             modifier = Modifier.weight(1f),
                         )
+                    }
+                }
+            }
+
+            // ─── Calendar Selection ─────────────────────
+            if (state.availableCalendars.isNotEmpty()) {
+                SectionHeader("Calendars")
+
+                Card(shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "Select which calendars to include in stress analysis.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+
+                        // "All calendars" toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = state.selectedCalendarIds == null,
+                                onCheckedChange = { checked ->
+                                    if (checked) viewModel.setSelectedCalendars(null)
+                                    else viewModel.setSelectedCalendars(emptySet())
+                                },
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "All calendars",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+                        val selected = state.selectedCalendarIds
+                        state.availableCalendars.forEach { cal ->
+                            val isSelected = selected == null || selected.contains(cal.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { checked ->
+                                        viewModel.toggleCalendar(cal.id, checked)
+                                    },
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    modifier = Modifier.size(12.dp),
+                                    shape = RoundedCornerShape(3.dp),
+                                    color = androidx.compose.ui.graphics.Color(cal.color or 0xFF000000.toInt()),
+                                ) {}
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        cal.displayName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        cal.accountName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
