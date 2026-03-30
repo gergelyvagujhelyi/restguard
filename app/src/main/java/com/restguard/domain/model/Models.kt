@@ -66,12 +66,15 @@ data class CalendarPressureBreakdown(
 
 // ─── Calendar ───────────────────────────────────────────────
 
+enum class CalendarSource { SYSTEM, GOOGLE_API }
+
 data class CalendarInfo(
     val id: String,
     val accountName: String,
     val displayName: String,
     val color: Int,
     val isPrimary: Boolean,
+    val source: CalendarSource = CalendarSource.SYSTEM,
 )
 
 data class CalendarEvent(

@@ -1,7 +1,9 @@
 package com.restguard.ui.settings
 
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restguard.data.auth.GoogleAuthManager
 import com.restguard.data.preferences.UserPreferences
 import com.restguard.domain.repository.CalendarRepository
 import com.restguard.domain.service.DataManagementService
@@ -15,6 +17,7 @@ class SettingsViewModel @Inject constructor(
     private val preferences: UserPreferences,
     private val dataManagement: DataManagementService,
     private val calendarRepo: CalendarRepository,
+    val googleAuthManager: GoogleAuthManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -48,10 +51,49 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            googleAuthManager.accounts.collect { accounts ->
+                _uiState.update {
+                    it.copy(googleAccounts = accounts)
+                }
+            }
+        }
+
+        loadCalendars()
+    }
+
+    private fun loadCalendars() {
+        viewModelScope.launch {
             try {
                 val calendars = calendarRepo.getAvailableCalendars()
                 _uiState.update { it.copy(availableCalendars = calendars) }
             } catch (_: Exception) { }
+        }
+    }
+
+    fun getGoogleSignInIntent(): Intent = googleAuthManager.getSignInIntent()
+
+    fun onGoogleSignInResult(intent: Intent?) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(googleSignInError = null) }
+                val task = com.google.android.gms.auth.api.signin.GoogleSignIn
+                    .getSignedInAccountFromIntent(intent)
+                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                googleAuthManager.handleSignInResult(account)
+                loadCalendars()
+            } catch (e: Exception) {
+                val code = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
+                _uiState.update {
+                    it.copy(googleSignInError = "Sign-in failed: ${code ?: e.message}")
+                }
+            }
+        }
+    }
+
+    fun signOutGoogle(email: String) {
+        viewModelScope.launch {
+            googleAuthManager.signOut(email)
+            loadCalendars()
         }
     }
 

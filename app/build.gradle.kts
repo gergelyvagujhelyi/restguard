@@ -131,7 +131,10 @@ dependencies {
     // Health Connect
     implementation("androidx.health.connect:connect-client:1.1.0-alpha10")
 
-    // Networking (for LLM API)
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+
+    // Networking (for LLM API + Google Calendar API)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
