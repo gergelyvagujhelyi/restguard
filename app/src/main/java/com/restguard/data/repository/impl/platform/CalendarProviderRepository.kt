@@ -36,8 +36,6 @@ class CalendarProviderRepository(
         CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,  // 2
         CalendarContract.Calendars.CALENDAR_COLOR,         // 3
         CalendarContract.Calendars.IS_PRIMARY,             // 4
-        CalendarContract.Calendars.VISIBLE,                // 5
-        CalendarContract.Calendars.ACCOUNT_TYPE,           // 6
     )
 
     // ─── Projections ────────────────────────────────────────
@@ -86,36 +84,62 @@ class CalendarProviderRepository(
     override suspend fun getAvailableCalendars(): List<CalendarInfo> {
         return withContext(Dispatchers.IO) {
             val calendars = mutableListOf<CalendarInfo>()
-            // Query all calendars across all accounts
-            val uri = CalendarContract.Calendars.CONTENT_URI.buildUpon()
-                .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "false")
-                .build()
-            val cursor = contentResolver.query(
-                uri,
-                calendarProjection,
-                null,
-                null,
-                "${CalendarContract.Calendars.ACCOUNT_NAME} ASC, ${CalendarContract.Calendars.IS_PRIMARY} DESC",
-            )
-            cursor?.use {
-                while (it.moveToNext()) {
-                    val accountType = it.getString(6) ?: ""
-                    // Skip local "stale" calendars that are hidden system artifacts
-                    if (accountType == CalendarContract.ACCOUNT_TYPE_LOCAL) {
-                        val visible = if (it.isNull(5)) true else it.getInt(5) == 1
-                        if (!visible) continue
-                    }
-                    calendars.add(
-                        CalendarInfo(
-                            id = it.getLong(0).toString(),
-                            accountName = it.getString(1) ?: "",
-                            displayName = it.getString(2) ?: "",
-                            color = if (it.isNull(3)) 0 else it.getInt(3),
-                            isPrimary = if (it.isNull(4)) false else it.getInt(4) == 1,
+            try {
+                val cursor = contentResolver.query(
+                    CalendarContract.Calendars.CONTENT_URI,
+                    calendarProjection,
+                    null,
+                    null,
+                    "${CalendarContract.Calendars.ACCOUNT_NAME} ASC",
+                )
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        calendars.add(
+                            CalendarInfo(
+                                id = it.getLong(0).toString(),
+                                accountName = it.getString(1) ?: "",
+                                displayName = it.getString(2) ?: "",
+                                color = if (it.isNull(3)) 0 else it.getInt(3),
+                                isPrimary = if (it.isNull(4)) false else it.getInt(4) == 1,
+                            )
                         )
-                    )
+                    }
+                }
+            } catch (_: Exception) {
+                // Fallback: derive calendars from events if Calendars table fails
+            }
+
+            // If the Calendars table returned nothing or failed, derive from recent events
+            if (calendars.isEmpty()) {
+                val now = System.currentTimeMillis()
+                val monthAgo = now - 30L * 24 * 60 * 60 * 1000
+                val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
+                ContentUris.appendId(builder, monthAgo)
+                ContentUris.appendId(builder, now + 7L * 24 * 60 * 60 * 1000)
+                val cursor = contentResolver.query(
+                    builder.build(),
+                    arrayOf(CalendarContract.Instances.CALENDAR_ID),
+                    null, null, null,
+                )
+                val seenIds = mutableSetOf<String>()
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        val calId = it.getLong(0).toString()
+                        if (seenIds.add(calId)) {
+                            calendars.add(
+                                CalendarInfo(
+                                    id = calId,
+                                    accountName = "Account",
+                                    displayName = "Calendar $calId",
+                                    color = 0,
+                                    isPrimary = false,
+                                )
+                            )
+                        }
+                    }
                 }
             }
+
             calendars
         }
     }
