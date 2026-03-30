@@ -1,6 +1,9 @@
 package com.restguard.ui.settings
 
+import android.app.Activity
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +38,8 @@ data class SettingsUiState(
     val dataDeleted: Boolean = false,
     val availableCalendars: List<com.restguard.domain.model.CalendarInfo> = emptyList(),
     val selectedCalendarIds: Set<String>? = null, // null = all, empty = none
+    val googleAccounts: Set<String> = emptySet(),
+    val googleSignInError: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,6 +51,12 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        viewModel.onGoogleSignInResult(result.data)
+    }
 
     // Handle export data sharing
     LaunchedEffect(state.exportJson) {
@@ -194,6 +205,80 @@ fun SettingsScreen(
                             steps = 6,
                             modifier = Modifier.weight(1f),
                         )
+                    }
+                }
+            }
+
+            // ─── Connected Accounts ─────────────────────
+            SectionHeader("Connected Accounts")
+
+            Card(shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "Connect calendar providers for direct API access. " +
+                            "Useful on devices where calendars don't sync to the system provider.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    state.googleAccounts.forEach { email ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.AccountCircle, null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Google Calendar",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Text(
+                                    email,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            TextButton(onClick = { viewModel.signOutGoogle(email) }) {
+                                Text("Sign Out")
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { googleSignInLauncher.launch(viewModel.getGoogleSignInIntent()) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (state.googleAccounts.isEmpty()) "Sign in with Google" else "Add Google Account")
+                    }
+
+                    state.googleSignInError?.let { error ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Microsoft — Coming Soon")
                     }
                 }
             }

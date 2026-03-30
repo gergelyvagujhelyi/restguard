@@ -16,6 +16,7 @@ data class DashboardUiState(
     val currentStress: StressSample? = null,
     val stressLevel: StressLevel = StressLevel.LOW,
     val predictions: List<StressPrediction> = emptyList(),
+    val predictionsLoading: Boolean = true,
     val recommendations: List<Recommendation> = emptyList(),
     val error: String? = null,
 )
@@ -37,27 +38,29 @@ class DashboardViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, predictionsLoading = true, error = null) }
             try {
+                // Phase 1: stress score — show immediately
                 val stress = stressScoringService.computeCurrentStress()
                 val level = stressScoringService.classifyStress(stress.score)
-                val predictions = stressScoringService.predictStress(3)
-                val recommendations = recommendationEngine.generateRecommendations()
-
-                recommendationRepo.saveRecommendations(recommendations)
-
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         currentStress = stress,
                         stressLevel = level,
-                        predictions = predictions,
-                        recommendations = recommendations,
                     )
                 }
+
+                // Phase 2: predictions + recommendations
+                val predictions = stressScoringService.predictStress(3)
+                _uiState.update { it.copy(predictions = predictions, predictionsLoading = false) }
+
+                val recommendations = recommendationEngine.generateRecommendations(stress, level, predictions)
+                recommendationRepo.saveRecommendations(recommendations)
+                _uiState.update { it.copy(recommendations = recommendations) }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isLoading = false, error = e.message ?: "Unknown error")
+                    it.copy(isLoading = false, predictionsLoading = false, error = e.message ?: "Unknown error")
                 }
             }
         }

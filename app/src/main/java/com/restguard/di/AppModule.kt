@@ -9,9 +9,17 @@ import com.restguard.data.remote.ClaudeApiClient
 import com.restguard.data.repository.impl.*
 import com.restguard.data.repository.impl.RoomCheckInRepository
 import com.restguard.data.repository.impl.RoomPersonalizationRepository
+import com.restguard.data.auth.GoogleAuthManager
+import com.restguard.data.remote.google.GoogleCalendarApi
 import com.restguard.data.repository.impl.platform.CalendarProviderRepository
 import com.restguard.data.repository.impl.platform.ContactsProviderRepository
+import com.restguard.data.repository.impl.platform.GoogleCalendarApiRepository
 import com.restguard.data.repository.impl.platform.HealthConnectRepository
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.restguard.domain.repository.*
 import com.restguard.domain.service.*
 import dagger.Module
@@ -65,13 +73,32 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideGoogleCalendarApi(): GoogleCalendarApi {
+        val json = Json { ignoreUnknownKeys = true }
+        val client = OkHttpClient.Builder().build()
+        return Retrofit.Builder()
+            .baseUrl("https://www.googleapis.com/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(GoogleCalendarApi::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideCalendarRepository(
         @ApplicationContext context: Context,
         userPreferences: UserPreferences,
+        googleCalendarApi: GoogleCalendarApi,
+        googleAuthManager: GoogleAuthManager,
     ): CalendarRepository = if (BuildConfig.USE_FAKES) {
         FakeCalendarRepository()
     } else {
-        CalendarProviderRepository(context, userPreferences)
+        MergedCalendarRepository(
+            systemRepo = CalendarProviderRepository(context, userPreferences),
+            googleApiRepo = GoogleCalendarApiRepository(googleCalendarApi, googleAuthManager, userPreferences),
+            authManager = googleAuthManager,
+        )
     }
 
     @Provides

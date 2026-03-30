@@ -52,7 +52,17 @@ class RecommendationEngine @Inject constructor(
         val currentStress = stressScoring.computeCurrentStress()
         val stressLevel = stressScoring.classifyStress(currentStress.score)
         val predictions = stressScoring.predictStress(FUTURE_DAYS_TO_SCAN)
+        return generateRecommendations(currentStress, stressLevel, predictions)
+    }
 
+    /**
+     * Generate recommendations from pre-computed stress data (avoids duplicate computation).
+     */
+    suspend fun generateRecommendations(
+        currentStress: StressSample,
+        stressLevel: StressLevel,
+        predictions: List<StressPrediction>,
+    ): List<Recommendation> {
         return when (stressLevel) {
             StressLevel.EXTREME -> generateExtremeStressRecommendations(currentStress)
             StressLevel.HIGH -> generateHighStressRecommendations(currentStress, predictions)

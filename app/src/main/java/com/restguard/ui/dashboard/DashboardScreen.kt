@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -52,16 +54,6 @@ fun DashboardScreen(
         label = "stressColor",
     )
 
-    if (state.isLoading) {
-        Box(
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator(color = Teal)
-        }
-        return
-    }
-
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 
@@ -83,7 +75,13 @@ fun DashboardScreen(
     val bannerHeight = with(density) { 40.dp.toPx() }
     val score = state.currentStress?.score ?: 0
 
-    Box(
+    val pullToRefreshState = rememberPullToRefreshState()
+    val pullOffset = pullToRefreshState.distanceFraction.coerceIn(0f, 1.5f) * 64f // max 96dp
+
+    PullToRefreshBox(
+        isRefreshing = state.isLoading,
+        onRefresh = { viewModel.refresh() },
+        state = pullToRefreshState,
         modifier = Modifier.fillMaxSize(),
     ) {
         // ─── Collapsing Banner Overlay ────────────────
@@ -92,6 +90,7 @@ fun DashboardScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .offset(y = pullOffset.dp)
                     .zIndex(1f)
                     .graphicsLayer { alpha = collapseProgress }
                     .background(DarkBg) // full-width opaque bg covers corner gaps
@@ -137,6 +136,7 @@ fun DashboardScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .offset(y = pullOffset.dp)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
@@ -158,6 +158,7 @@ fun DashboardScreen(
                             score = score,
                             level = state.stressLevel,
                             stressColor = stressColor,
+                            isLoading = state.isLoading,
                         )
                     }
                 }
@@ -228,12 +229,20 @@ fun DashboardScreen(
                         color = TextPrimary,
                     )
                     Spacer(Modifier.weight(1f))
-                    Text(
-                        "${state.predictions.sumOf { it.calendarPressureBreakdown.meetingCount }}+",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Teal,
-                    )
+                    if (state.predictionsLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Teal,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text(
+                            "${state.predictions.sumOf { it.calendarPressureBreakdown.meetingCount }}+",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Teal,
+                        )
+                    }
                 }
             }
         }
@@ -310,17 +319,29 @@ fun DashboardScreen(
         }
 
         // ─── Upcoming Days ─────────────────────────────
-        if (state.predictions.isNotEmpty()) {
-            item {
+        item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
                 Text(
                     "UPCOMING DAYS",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = Teal,
                     letterSpacing = 1.sp,
-                    modifier = Modifier.padding(top = 4.dp),
                 )
+                if (state.predictionsLoading) {
+                    Spacer(Modifier.width(10.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = Teal,
+                        strokeWidth = 2.dp,
+                    )
+                }
             }
+        }
+        if (state.predictions.isNotEmpty()) {
             items(state.predictions) { prediction ->
                 PredictionCard(prediction)
             }
@@ -344,28 +365,78 @@ fun DashboardScreen(
             }
         }
     }
-    } // Box
+    } // PullToRefreshBox
 }
 
 // ─── Circular Stress Gauge ──────────────────────────────────
 
 @Composable
-private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
-    val sweepAngle = (score / 100f) * 270f
+private fun StressGauge(score: Int, level: StressLevel, stressColor: Color, isLoading: Boolean = false) {
     val bgArcColor = DarkCardBorder
 
-    // 4-7-8 breathing glow: 4s inhale, 7s hold, 8s exhale (19s cycle)
+    // Loading: cycle through stress colors
+    val loadingColors = listOf(StressLow, Teal, StressModerate, StressHigh, StressExtreme)
     val infiniteTransition = rememberInfiniteTransition(label = "gaugePulse")
+
+    // 4-7-8 breathing: 4s inhale, 7s hold, 8s exhale = 19s cycle
+    // Color ramps up during inhale, holds at peak, fades back during exhale
+    val loadingColorProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 19000
+                0f at 0 using LinearEasing                                       // exhale end: calm
+                (loadingColors.size - 1).toFloat() at 4000 using LinearEasing    // inhale: ramp through all colors
+                (loadingColors.size - 1).toFloat() at 11000 using LinearEasing   // hold at peak
+                0f at 19000                                                      // exhale: fade back to calm
+            },
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "loadingColor",
+    )
+
+    val loadingColor = run {
+        val idx = loadingColorProgress.toInt().coerceIn(0, loadingColors.size - 2)
+        val nextIdx = idx + 1
+        val fraction = loadingColorProgress - idx
+        lerp(loadingColors[idx], loadingColors[nextIdx], fraction)
+    }
+
+    // When loading: use cycling color directly. When loaded: animate to stress color.
+    val settledColor by animateColorAsState(
+        targetValue = stressColor,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "gaugeColor",
+    )
+    val activeColor = if (isLoading) loadingColor else settledColor
+
+    // Smooth transition from full arc (loading) to actual score arc
+    val targetSweep = if (isLoading) 270f else (score / 100f) * 270f
+    val sweepAngle by animateFloatAsState(
+        targetValue = targetSweep,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "gaugeSweep",
+    )
+
+    // Animated score counter
+    val displayScore by animateIntAsState(
+        targetValue = if (isLoading) 0 else score,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "gaugeScore",
+    )
+
+    // 4-7-8 breathing glow intensity
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.15f,
         targetValue = 0.15f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
                 durationMillis = 19000
-                0.15f at 0 using LinearEasing               // start: lungs empty
-                1.0f at 4000 using LinearEasing              // 4s steady inhale → full
-                1.0f at 11000 using LinearEasing             // 7s hold at peak
-                0.15f at 19000                               // 8s steady exhale → empty
+                0.15f at 0 using LinearEasing        // exhale end: dim
+                1.0f at 4000 using LinearEasing      // 4s inhale → full brightness
+                1.0f at 11000 using LinearEasing     // 7s hold at peak
+                0.15f at 19000                       // 8s exhale → dim
             },
             repeatMode = RepeatMode.Restart,
         ),
@@ -381,28 +452,26 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
         Box(contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(240.dp)) {
                 val canvasRadius = size.minDimension / 2f
-                val arcRadius = canvasRadius * (200f / 240f) // arc fits in 200dp area
+                val arcRadius = canvasRadius * (200f / 240f)
                 val arcStroke = 7.dp.toPx()
                 val arcInset = canvasRadius - arcRadius
 
-                // Ambient haze — pulsating glow from center, 20% beyond the arc
+                // Ambient haze
                 val hazeRadius = (arcRadius + arcStroke) * 1.20f
                 val hazeStops = 16
                 drawCircle(
                     brush = Brush.radialGradient(
                         colorStops = Array(hazeStops) { i ->
                             val t = i.toFloat() / (hazeStops - 1)
-                            // Smooth falloff: full at center, fading to zero at edge
                             val fade = (1f - t) * (1f - t)
                             val intensity = 0.8f * fade
-                            t to stressColor.copy(alpha = intensity * pulseAlpha)
+                            t to activeColor.copy(alpha = intensity * pulseAlpha)
                         },
                         center = center,
                         radius = hazeRadius,
                     ),
                 )
 
-                // Arc area inset within the larger canvas
                 val arcAreaSize = Size(arcRadius * 2, arcRadius * 2)
                 val arcTopLeft = Offset(arcInset, arcInset)
 
@@ -417,7 +486,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
 
-                // Soft glow — 48 layers, wider spread, lighter near arc
+                // Soft glow layers
                 val glowSteps = 34
                 val maxSpread = 34.dp.toPx()
                 for (i in glowSteps downTo 1) {
@@ -425,7 +494,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     val spread = maxSpread * t * pulseAlpha
                     val alpha = 0.30f * (1f - t) * (1f - t) * (1f - t) * pulseAlpha
                     drawArc(
-                        color = stressColor.copy(alpha = alpha),
+                        color = activeColor.copy(alpha = alpha),
                         startAngle = 135f,
                         sweepAngle = sweepAngle,
                         useCenter = false,
@@ -437,7 +506,7 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
 
                 // Bright core arc
                 drawArc(
-                    color = stressColor,
+                    color = activeColor,
                     startAngle = 135f,
                     sweepAngle = sweepAngle,
                     useCenter = false,
@@ -445,14 +514,13 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
                     size = arcAreaSize,
                     style = Stroke(width = arcStroke, cap = StrokeCap.Round),
                 )
-
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "$score",
+                    if (isLoading) "..." else "$displayScore",
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
+                    color = if (isLoading) TextSecondary else TextPrimary,
                 )
                 Text(
                     "/100",
@@ -462,6 +530,17 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color) {
             }
         }
     }
+}
+
+/** Linearly interpolate between two colors. */
+private fun lerp(a: Color, b: Color, fraction: Float): Color {
+    val f = fraction.coerceIn(0f, 1f)
+    return Color(
+        red = a.red + (b.red - a.red) * f,
+        green = a.green + (b.green - a.green) * f,
+        blue = a.blue + (b.blue - a.blue) * f,
+        alpha = a.alpha + (b.alpha - a.alpha) * f,
+    )
 }
 
 // ─── Health Metric Card ──────────────────────────────────────

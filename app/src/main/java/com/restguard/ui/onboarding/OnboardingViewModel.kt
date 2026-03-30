@@ -1,9 +1,13 @@
 package com.restguard.ui.onboarding
 
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.restguard.data.auth.GoogleAuthManager
 import com.restguard.data.preferences.UserPreferences
+import com.restguard.domain.model.CalendarInfo
+import com.restguard.domain.repository.CalendarRepository
 import com.restguard.ui.common.checkHealthConnectPermissions
 import com.restguard.ui.common.checkPermissions
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,12 +20,17 @@ data class OnboardingUiState(
     val healthGranted: Boolean = false,
     val calendarGranted: Boolean = false,
     val notificationGranted: Boolean = false,
+    val systemCalendars: List<CalendarInfo> = emptyList(),
+    val googleAccounts: Set<String> = emptySet(),
+    val googleSignInError: String? = null,
 )
 
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val preferences: UserPreferences,
     @ApplicationContext private val context: Context,
+    private val calendarRepo: CalendarRepository,
+    val googleAuthManager: GoogleAuthManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
@@ -29,12 +38,13 @@ class OnboardingViewModel @Inject constructor(
 
     init {
         refreshPermissionState()
+        viewModelScope.launch {
+            googleAuthManager.accounts.collect { accounts ->
+                _uiState.update { it.copy(googleAccounts = accounts) }
+            }
+        }
     }
 
-    /**
-     * Refresh permission state from the system.
-     * Call this after returning from a permission request.
-     */
     fun refreshPermissionState() {
         val current = checkPermissions(context)
         _uiState.update {
@@ -43,26 +53,43 @@ class OnboardingViewModel @Inject constructor(
                 notificationGranted = current.hasNotification,
             )
         }
-        // Health Connect requires a suspend call to check actual granted permissions
         viewModelScope.launch {
             val healthGranted = checkHealthConnectPermissions(context)
             _uiState.update { it.copy(healthGranted = healthGranted) }
         }
     }
 
-    /**
-     * Called when a permission is requested.
-     * The actual request is launched from the Composable via permission launchers.
-     * This records the intent — the actual grant result is picked up by refreshPermissionState().
-     */
-    fun requestPermission(type: PermissionType) {
-        // The Composable layer handles the actual permission dialog launch.
-        // This method is kept as a hook for analytics or state tracking.
+    fun loadSystemCalendars() {
+        viewModelScope.launch {
+            try {
+                val calendars = calendarRepo.getAvailableCalendars()
+                _uiState.update { it.copy(systemCalendars = calendars) }
+            } catch (_: Exception) { }
+        }
     }
 
-    /**
-     * Called from the Composable after a permission result is received.
-     */
+    fun getGoogleSignInIntent(): Intent = googleAuthManager.getSignInIntent()
+
+    fun onGoogleSignInResult(intent: Intent?) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(googleSignInError = null) }
+                val task = com.google.android.gms.auth.api.signin.GoogleSignIn
+                    .getSignedInAccountFromIntent(intent)
+                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                googleAuthManager.handleSignInResult(account)
+                loadSystemCalendars()
+            } catch (e: Exception) {
+                val code = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
+                _uiState.update {
+                    it.copy(googleSignInError = "Sign-in failed: ${code ?: e.message}")
+                }
+            }
+        }
+    }
+
+    fun requestPermission(type: PermissionType) { }
+
     fun onPermissionResult(type: PermissionType, granted: Boolean) {
         viewModelScope.launch {
             when (type) {
@@ -73,14 +100,13 @@ class OnboardingViewModel @Inject constructor(
                 PermissionType.CALENDAR -> {
                     _uiState.update { it.copy(calendarGranted = granted) }
                     preferences.setPermissionGranted(calendar = granted)
+                    if (granted) loadSystemCalendars()
                 }
                 PermissionType.NOTIFICATIONS -> {
                     _uiState.update { it.copy(notificationGranted = granted) }
                     preferences.setPermissionGranted(notification = granted)
                 }
-                PermissionType.CONTACTS -> {
-                    // Handled lazily when contact picker is opened
-                }
+                PermissionType.CONTACTS -> { }
             }
         }
     }

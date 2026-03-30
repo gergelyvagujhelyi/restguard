@@ -42,6 +42,9 @@ class UserPreferences(private val context: Context) {
         // Calendar selection (comma-separated IDs; empty = all)
         val KEY_SELECTED_CALENDAR_IDS = stringPreferencesKey("selected_calendar_ids")
         private const val NONE_SENTINEL = "__none__"
+
+        // Google Calendar sign-in (comma-separated emails)
+        val KEY_GOOGLE_CALENDAR_EMAILS = stringPreferencesKey("google_calendar_emails")
     }
 
     val isOnboardingComplete: Flow<Boolean> = context.dataStore.data
@@ -108,6 +111,31 @@ class UserPreferences(private val context: Context) {
                 ids.isEmpty() -> NONE_SENTINEL
                 else -> ids.joinToString(",")
             }
+        }
+    }
+
+    /** Set of Google account emails that have been signed in for calendar access. */
+    val googleCalendarEmails: Flow<Set<String>> = context.dataStore.data
+        .map { prefs ->
+            val raw = prefs[KEY_GOOGLE_CALENDAR_EMAILS]
+            if (raw.isNullOrBlank()) emptySet() else raw.split(",").toSet()
+        }
+
+    suspend fun addGoogleCalendarEmail(email: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_GOOGLE_CALENDAR_EMAILS]
+            val emails = if (current.isNullOrBlank()) mutableSetOf() else current.split(",").toMutableSet()
+            emails.add(email)
+            prefs[KEY_GOOGLE_CALENDAR_EMAILS] = emails.joinToString(",")
+        }
+    }
+
+    suspend fun removeGoogleCalendarEmail(email: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_GOOGLE_CALENDAR_EMAILS]
+            val emails = if (current.isNullOrBlank()) mutableSetOf() else current.split(",").toMutableSet()
+            emails.remove(email)
+            prefs[KEY_GOOGLE_CALENDAR_EMAILS] = emails.joinToString(",")
         }
     }
 
