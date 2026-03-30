@@ -27,6 +27,7 @@ import com.restguard.ui.history.HistoryScreen
 import com.restguard.ui.onboarding.OnboardingScreen
 import com.restguard.ui.recommendation.RecommendationDetailScreen
 import com.restguard.ui.reschedule.RescheduleScreen
+import com.restguard.ui.settings.AboutScreen
 import com.restguard.ui.settings.SettingsScreen
 import com.restguard.ui.theme.RestGuardTheme
 import com.restguard.worker.MeetingCompletionWorker
@@ -151,7 +152,14 @@ fun RestGuardNavHost(
             }
 
             composable("settings") {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAbout = { navController.navigate("about") },
+                )
+            }
+
+            composable("about") {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
 
             // ─── Onboarding ─────────────────────────────
