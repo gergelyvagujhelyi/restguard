@@ -6,11 +6,13 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.provider.CalendarContract
+import com.restguard.data.preferences.UserPreferences
 import com.restguard.domain.model.*
 import com.restguard.domain.repository.CalendarRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.*
 
@@ -22,10 +24,19 @@ import java.time.*
  */
 class CalendarProviderRepository(
     private val context: Context,
+    private val userPreferences: UserPreferences,
 ) : CalendarRepository {
 
     private val contentResolver: ContentResolver = context.contentResolver
     private val _eventsFlow = MutableStateFlow<List<CalendarEvent>>(emptyList())
+
+    private val calendarProjection = arrayOf(
+        CalendarContract.Calendars._ID,                    // 0
+        CalendarContract.Calendars.ACCOUNT_NAME,           // 1
+        CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,  // 2
+        CalendarContract.Calendars.CALENDAR_COLOR,         // 3
+        CalendarContract.Calendars.IS_PRIMARY,             // 4
+    )
 
     // ─── Projections ────────────────────────────────────────
 
@@ -69,6 +80,69 @@ class CalendarProviderRepository(
     )
 
     // ─── Read operations ────────────────────────────────────
+
+    override suspend fun getAvailableCalendars(): List<CalendarInfo> {
+        return withContext(Dispatchers.IO) {
+            val calendars = mutableListOf<CalendarInfo>()
+            try {
+                val cursor = contentResolver.query(
+                    CalendarContract.Calendars.CONTENT_URI,
+                    calendarProjection,
+                    null,
+                    null,
+                    "${CalendarContract.Calendars.ACCOUNT_NAME} ASC",
+                )
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        calendars.add(
+                            CalendarInfo(
+                                id = it.getLong(0).toString(),
+                                accountName = it.getString(1) ?: "",
+                                displayName = it.getString(2) ?: "",
+                                color = if (it.isNull(3)) 0 else it.getInt(3),
+                                isPrimary = if (it.isNull(4)) false else it.getInt(4) == 1,
+                            )
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                // Fallback: derive calendars from events if Calendars table fails
+            }
+
+            // If the Calendars table returned nothing or failed, derive from recent events
+            if (calendars.isEmpty()) {
+                val now = System.currentTimeMillis()
+                val monthAgo = now - 30L * 24 * 60 * 60 * 1000
+                val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
+                ContentUris.appendId(builder, monthAgo)
+                ContentUris.appendId(builder, now + 7L * 24 * 60 * 60 * 1000)
+                val cursor = contentResolver.query(
+                    builder.build(),
+                    arrayOf(CalendarContract.Instances.CALENDAR_ID),
+                    null, null, null,
+                )
+                val seenIds = mutableSetOf<String>()
+                cursor?.use {
+                    while (it.moveToNext()) {
+                        val calId = it.getLong(0).toString()
+                        if (seenIds.add(calId)) {
+                            calendars.add(
+                                CalendarInfo(
+                                    id = calId,
+                                    accountName = "Account",
+                                    displayName = "Calendar $calId",
+                                    color = 0,
+                                    isPrimary = false,
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            calendars
+        }
+    }
 
     override suspend fun getEvents(from: ZonedDateTime, to: ZonedDateTime): List<CalendarEvent> {
         return withContext(Dispatchers.IO) {
@@ -143,33 +217,43 @@ class CalendarProviderRepository(
 
     // ─── Query helpers ──────────────────────────────────────
 
-    private fun queryEvents(startMillis: Long, endMillis: Long): List<CalendarEvent> {
+    private suspend fun queryEvents(startMillis: Long, endMillis: Long): List<CalendarEvent> {
         // Use Instances table to include recurring event occurrences
         val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
         ContentUris.appendId(builder, startMillis)
         ContentUris.appendId(builder, endMillis)
 
+        // Filter by selected calendars: null = all, empty = none, non-empty = specific
+        val selectedIds = userPreferences.selectedCalendarIds.first()
+        val selection = when {
+            selectedIds == null -> null // all calendars
+            selectedIds.isEmpty() -> "1=0" // none selected — return nothing
+            else -> {
+                val placeholders = selectedIds.joinToString(",") { "?" }
+                "${CalendarContract.Instances.CALENDAR_ID} IN ($placeholders)"
+            }
+        }
+        val selectionArgs = if (selectedIds != null && selectedIds.isNotEmpty()) {
+            selectedIds.toTypedArray()
+        } else null
+
         val cursor = contentResolver.query(
             builder.build(),
             instanceProjection,
-            null,
-            null,
+            selection,
+            selectionArgs,
             "${CalendarContract.Instances.BEGIN} ASC",
         )
 
         val events = mutableListOf<CalendarEvent>()
-        android.util.Log.d("CalendarRepo", "Instances query: cursor=${cursor != null}, count=${cursor?.count ?: 0}")
         cursor?.use {
             while (it.moveToNext()) {
                 val parsed = parseInstance(it)
                 if (parsed != null) {
                     events.add(parsed)
-                } else {
-                    android.util.Log.w("CalendarRepo", "Failed to parse instance at row ${it.position}")
                 }
             }
         }
-        android.util.Log.d("CalendarRepo", "Parsed ${events.size} events from ${startMillis}..${endMillis}")
 
         _eventsFlow.value = events
         return events

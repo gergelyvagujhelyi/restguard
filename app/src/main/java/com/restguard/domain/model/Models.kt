@@ -66,6 +66,14 @@ data class CalendarPressureBreakdown(
 
 // ─── Calendar ───────────────────────────────────────────────
 
+data class CalendarInfo(
+    val id: String,
+    val accountName: String,
+    val displayName: String,
+    val color: Int,
+    val isPrimary: Boolean,
+)
+
 data class CalendarEvent(
     val id: String,
     val calendarId: String,

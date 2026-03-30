@@ -21,6 +21,13 @@ class FakeCalendarRepository : CalendarRepository {
         events.value = generateSampleEvents()
     }
 
+    override suspend fun getAvailableCalendars(): List<CalendarInfo> {
+        return listOf(
+            CalendarInfo(id = "fake_cal_1", accountName = "me@co.com", displayName = "Work", color = 0xFF1B9AAA.toInt(), isPrimary = true),
+            CalendarInfo(id = "fake_cal_2", accountName = "me@gmail.com", displayName = "Personal", color = 0xFF4CAF50.toInt(), isPrimary = false),
+        )
+    }
+
     override suspend fun getEvents(from: ZonedDateTime, to: ZonedDateTime): List<CalendarEvent> {
         return events.value.filter { it.startTime >= from && it.startTime <= to }
     }

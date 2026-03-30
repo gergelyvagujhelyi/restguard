@@ -3,6 +3,7 @@ package com.restguard.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.restguard.data.preferences.UserPreferences
+import com.restguard.domain.repository.CalendarRepository
 import com.restguard.domain.service.DataManagementService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -13,6 +14,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val preferences: UserPreferences,
     private val dataManagement: DataManagementService,
+    private val calendarRepo: CalendarRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -38,6 +40,19 @@ class SettingsViewModel @Inject constructor(
                 _uiState.value = state
             }
         }
+
+        viewModelScope.launch {
+            preferences.selectedCalendarIds.collect { ids ->
+                _uiState.update { it.copy(selectedCalendarIds = ids) }
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                val calendars = calendarRepo.getAvailableCalendars()
+                _uiState.update { it.copy(availableCalendars = calendars) }
+            } catch (_: Exception) { }
+        }
     }
 
     fun setMonitoringPaused(paused: Boolean) {
@@ -62,6 +77,29 @@ class SettingsViewModel @Inject constructor(
 
     fun setRetentionDays(days: Int) {
         viewModelScope.launch { preferences.setDataRetentionDays(days) }
+    }
+
+    fun setSelectedCalendars(ids: Set<String>?) {
+        viewModelScope.launch { preferences.setSelectedCalendarIds(ids) }
+    }
+
+    fun toggleCalendar(calendarId: String, checked: Boolean) {
+        viewModelScope.launch {
+            val current = _uiState.value.selectedCalendarIds
+            val allIds = _uiState.value.availableCalendars.map { it.id }.toSet()
+
+            val newIds = if (current == null) {
+                // Was "all" — unchecking one switches to explicit with all except that one
+                if (checked) return@launch else allIds - calendarId
+            } else {
+                if (checked) current + calendarId
+                else current - calendarId
+            }
+
+            // If all are selected, revert to null (meaning "all")
+            val finalIds = if (newIds.isNotEmpty() && newIds.containsAll(allIds)) null else newIds
+            preferences.setSelectedCalendarIds(finalIds)
+        }
     }
 
     fun exportData() {

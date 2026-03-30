@@ -67,10 +67,11 @@ object AppModule {
     @Singleton
     fun provideCalendarRepository(
         @ApplicationContext context: Context,
+        userPreferences: UserPreferences,
     ): CalendarRepository = if (BuildConfig.USE_FAKES) {
         FakeCalendarRepository()
     } else {
-        CalendarProviderRepository(context)
+        CalendarProviderRepository(context, userPreferences)
     }
 
     @Provides
