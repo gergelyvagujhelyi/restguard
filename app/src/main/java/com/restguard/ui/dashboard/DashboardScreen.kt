@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -73,7 +75,13 @@ fun DashboardScreen(
     val bannerHeight = with(density) { 40.dp.toPx() }
     val score = state.currentStress?.score ?: 0
 
-    Box(
+    val pullToRefreshState = rememberPullToRefreshState()
+    val pullOffset = pullToRefreshState.distanceFraction.coerceIn(0f, 1.5f) * 64f // max 96dp
+
+    PullToRefreshBox(
+        isRefreshing = state.isLoading,
+        onRefresh = { viewModel.refresh() },
+        state = pullToRefreshState,
         modifier = Modifier.fillMaxSize(),
     ) {
         // ─── Collapsing Banner Overlay ────────────────
@@ -82,6 +90,7 @@ fun DashboardScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .offset(y = pullOffset.dp)
                     .zIndex(1f)
                     .graphicsLayer { alpha = collapseProgress }
                     .background(DarkBg) // full-width opaque bg covers corner gaps
@@ -127,6 +136,7 @@ fun DashboardScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                .offset(y = pullOffset.dp)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
@@ -355,7 +365,7 @@ fun DashboardScreen(
             }
         }
     }
-    } // Box
+    } // PullToRefreshBox
 }
 
 // ─── Circular Stress Gauge ──────────────────────────────────
@@ -386,16 +396,35 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color, isLo
         label = "loadingColor",
     )
 
-    val activeColor = if (isLoading) {
+    val loadingColor = run {
         val idx = loadingColorProgress.toInt().coerceIn(0, loadingColors.size - 2)
         val nextIdx = idx + 1
         val fraction = loadingColorProgress - idx
         lerp(loadingColors[idx], loadingColors[nextIdx], fraction)
-    } else {
-        stressColor
     }
 
-    val sweepAngle = if (isLoading) 270f else (score / 100f) * 270f
+    // When loading: use cycling color directly. When loaded: animate to stress color.
+    val settledColor by animateColorAsState(
+        targetValue = stressColor,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "gaugeColor",
+    )
+    val activeColor = if (isLoading) loadingColor else settledColor
+
+    // Smooth transition from full arc (loading) to actual score arc
+    val targetSweep = if (isLoading) 270f else (score / 100f) * 270f
+    val sweepAngle by animateFloatAsState(
+        targetValue = targetSweep,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "gaugeSweep",
+    )
+
+    // Animated score counter
+    val displayScore by animateIntAsState(
+        targetValue = if (isLoading) 0 else score,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "gaugeScore",
+    )
 
     // 4-7-8 breathing glow intensity
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -487,21 +516,12 @@ private fun StressGauge(score: Int, level: StressLevel, stressColor: Color, isLo
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (isLoading) {
-                    Text(
-                        "...",
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextSecondary,
-                    )
-                } else {
-                    Text(
-                        "$score",
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                    )
-                }
+                Text(
+                    if (isLoading) "..." else "$displayScore",
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isLoading) TextSecondary else TextPrimary,
+                )
                 Text(
                     "/100",
                     fontSize = 16.sp,
