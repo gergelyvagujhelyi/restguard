@@ -140,21 +140,28 @@ class StressScoringService @Inject constructor(
 
     /**
      * Predict stress for the next N days.
+     * Fetches the entire date range in a single query and partitions locally.
      */
     suspend fun predictStress(days: Int = 3): List<StressPrediction> {
         val today = LocalDate.now()
         val zone = ZoneId.systemDefault()
         val historicalImpacts = stressRepo.getAllMeetingStressImpacts()
 
+        // Single batch fetch instead of N per-day calls
+        val rangeStart = today.atStartOfDay(zone)
+        val rangeEnd = today.plusDays(days.toLong()).atStartOfDay(zone)
+        val allEvents = calendarRepo.getEvents(rangeStart, rangeEnd)
+
         return (0 until days).map { offset ->
             val date = today.plusDays(offset.toLong())
-            val events = calendarRepo.getEventsForDate(date)
+            val dayStart = date.atStartOfDay(zone)
+            val dayEnd = date.plusDays(1).atStartOfDay(zone)
+            val events = allEvents.filter { it.startTime >= dayStart && it.startTime < dayEnd }
+
             val calendarPressure = computeCalendarPressure(events)
             val historicalPattern = computeHistoricalPattern(events, historicalImpacts)
             val breakdown = buildCalendarBreakdown(events)
 
-            // Future prediction has no physiological data — use calendar + history
-            // Weight shifts: calendar=0.55, historical=0.45
             val predicted = (0.55f * calendarPressure + 0.45f * historicalPattern)
                 .toInt().coerceIn(0, 100)
 

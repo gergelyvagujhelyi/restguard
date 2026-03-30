@@ -20,59 +20,82 @@ class GoogleCalendarApiRepository(
 
     private val _eventsFlow = MutableStateFlow<List<CalendarEvent>>(emptyList())
 
+    /** Cached calendar list per account. Refreshed at most every 5 minutes. */
+    private data class CalendarCache(
+        val calendars: Map<String, List<GoogleCalendarEntry>>, // email -> entries
+        val timestamp: Long = System.currentTimeMillis(),
+    )
+    private var calendarCache: CalendarCache? = null
+    private val cacheTtlMs = 5 * 60 * 1000L // 5 minutes
+
     private suspend fun authHeader(email: String): String? {
         val token = authManager.getAccessToken(email) ?: return null
         return "Bearer $token"
     }
 
-    override suspend fun getAvailableCalendars(): List<CalendarInfo> {
+    /** Returns cached calendar lists per account, fetching if stale or missing. */
+    private suspend fun getCachedCalendarLists(): Map<String, List<GoogleCalendarEntry>> {
+        val cache = calendarCache
         val accounts = authManager.accounts.value
-        if (accounts.isEmpty()) return emptyList()
+        if (cache != null && System.currentTimeMillis() - cache.timestamp < cacheTtlMs
+            && cache.calendars.keys == accounts) {
+            return cache.calendars
+        }
 
-        val seen = mutableSetOf<String>() // underlying Google calendar IDs already added
-        val result = mutableListOf<CalendarInfo>()
+        val result = mutableMapOf<String, List<GoogleCalendarEntry>>()
         for (email in accounts) {
             val auth = authHeader(email) ?: continue
             try {
-                val response = api.getCalendarList(auth)
-                for (entry in response.items) {
-                    if (entry.id in seen) continue // shared calendar already added from another account
-                    seen.add(entry.id)
-                    result.add(
-                        CalendarInfo(
-                            id = "gapi_${entry.id}",
-                            accountName = email,
-                            displayName = entry.summary ?: entry.id,
-                            color = parseColor(entry.backgroundColor),
-                            isPrimary = entry.primary == true,
-                            source = CalendarSource.GOOGLE_API,
-                        )
-                    )
-                }
+                result[email] = api.getCalendarList(auth).items
             } catch (_: Exception) { }
+        }
+        calendarCache = CalendarCache(result)
+        return result
+    }
+
+    override suspend fun getAvailableCalendars(): List<CalendarInfo> {
+        val calendarsByAccount = getCachedCalendarLists()
+        if (calendarsByAccount.isEmpty()) return emptyList()
+
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<CalendarInfo>()
+        for ((email, entries) in calendarsByAccount) {
+            for (entry in entries) {
+                if (entry.id in seen) continue
+                seen.add(entry.id)
+                result.add(
+                    CalendarInfo(
+                        id = "gapi_${entry.id}",
+                        accountName = email,
+                        displayName = entry.summary ?: entry.id,
+                        color = parseColor(entry.backgroundColor),
+                        isPrimary = entry.primary == true,
+                        source = CalendarSource.GOOGLE_API,
+                    )
+                )
+            }
         }
         return result
     }
 
     override suspend fun getEvents(from: ZonedDateTime, to: ZonedDateTime): List<CalendarEvent> {
-        val accounts = authManager.accounts.value
-        if (accounts.isEmpty()) return emptyList()
+        val calendarsByAccount = getCachedCalendarLists()
+        if (calendarsByAccount.isEmpty()) return emptyList()
 
         val selectedIds = userPreferences.selectedCalendarIds.first()
-        val seenCalendars = mutableSetOf<String>() // skip shared calendars already fetched
+        val seenCalendars = mutableSetOf<String>()
         val allEvents = mutableListOf<CalendarEvent>()
 
-        for (email in accounts) {
+        for ((email, entries) in calendarsByAccount) {
             val auth = authHeader(email) ?: continue
-            try {
-                val calendars = api.getCalendarList(auth)
-                for (cal in calendars.items) {
-                    if (cal.id in seenCalendars) continue
-                    seenCalendars.add(cal.id)
+            for (cal in entries) {
+                if (cal.id in seenCalendars) continue
+                seenCalendars.add(cal.id)
 
-                    val prefixedId = "gapi_${cal.id}"
-                    if (selectedIds != null && selectedIds.isNotEmpty() && prefixedId !in selectedIds) continue
+                val prefixedId = "gapi_${cal.id}"
+                if (selectedIds != null && selectedIds.isNotEmpty() && prefixedId !in selectedIds) continue
 
+                try {
                     val events = api.getEvents(
                         auth = auth,
                         calendarId = cal.id,
@@ -80,8 +103,8 @@ class GoogleCalendarApiRepository(
                         timeMax = to.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                     )
                     allEvents.addAll(events.items.mapNotNull { mapEvent(it, prefixedId) })
-                }
-            } catch (_: Exception) { }
+                } catch (_: Exception) { }
+            }
         }
 
         _eventsFlow.value = allEvents

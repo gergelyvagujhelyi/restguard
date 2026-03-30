@@ -42,7 +42,7 @@ class DashboardViewModel @Inject constructor(
                 val stress = stressScoringService.computeCurrentStress()
                 val level = stressScoringService.classifyStress(stress.score)
                 val predictions = stressScoringService.predictStress(3)
-                val recommendations = recommendationEngine.generateRecommendations()
+                val recommendations = recommendationEngine.generateRecommendations(stress, level, predictions)
 
                 recommendationRepo.saveRecommendations(recommendations)
 

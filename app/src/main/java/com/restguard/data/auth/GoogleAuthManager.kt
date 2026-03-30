@@ -13,12 +13,11 @@ import com.google.android.gms.common.api.Scope
 import com.restguard.data.preferences.UserPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -41,10 +40,14 @@ class GoogleAuthManager @Inject constructor(
         GoogleSignIn.getClient(context, gso)
     }
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     init {
-        // Restore saved accounts from preferences
-        val saved = runBlocking { userPreferences.googleCalendarEmails.first() }
-        _accounts.value = saved
+        // Restore saved accounts from preferences without blocking the main thread
+        scope.launch {
+            val saved = userPreferences.googleCalendarEmails.first()
+            _accounts.value = saved
+        }
     }
 
     fun getSignInIntent(): Intent = signInClient.signInIntent
