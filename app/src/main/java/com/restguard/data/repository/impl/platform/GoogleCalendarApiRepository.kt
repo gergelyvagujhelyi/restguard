@@ -29,21 +29,26 @@ class GoogleCalendarApiRepository(
         val accounts = authManager.accounts.value
         if (accounts.isEmpty()) return emptyList()
 
+        val seen = mutableSetOf<String>() // underlying Google calendar IDs already added
         val result = mutableListOf<CalendarInfo>()
         for (email in accounts) {
             val auth = authHeader(email) ?: continue
             try {
                 val response = api.getCalendarList(auth)
-                result.addAll(response.items.map { entry ->
-                    CalendarInfo(
-                        id = "gapi_${entry.id}",
-                        accountName = email,
-                        displayName = entry.summary ?: entry.id,
-                        color = parseColor(entry.backgroundColor),
-                        isPrimary = entry.primary == true,
-                        source = CalendarSource.GOOGLE_API,
+                for (entry in response.items) {
+                    if (entry.id in seen) continue // shared calendar already added from another account
+                    seen.add(entry.id)
+                    result.add(
+                        CalendarInfo(
+                            id = "gapi_${entry.id}",
+                            accountName = email,
+                            displayName = entry.summary ?: entry.id,
+                            color = parseColor(entry.backgroundColor),
+                            isPrimary = entry.primary == true,
+                            source = CalendarSource.GOOGLE_API,
+                        )
                     )
-                })
+                }
             } catch (_: Exception) { }
         }
         return result
@@ -54,6 +59,7 @@ class GoogleCalendarApiRepository(
         if (accounts.isEmpty()) return emptyList()
 
         val selectedIds = userPreferences.selectedCalendarIds.first()
+        val seenCalendars = mutableSetOf<String>() // skip shared calendars already fetched
         val allEvents = mutableListOf<CalendarEvent>()
 
         for (email in accounts) {
@@ -61,6 +67,9 @@ class GoogleCalendarApiRepository(
             try {
                 val calendars = api.getCalendarList(auth)
                 for (cal in calendars.items) {
+                    if (cal.id in seenCalendars) continue
+                    seenCalendars.add(cal.id)
+
                     val prefixedId = "gapi_${cal.id}"
                     if (selectedIds != null && selectedIds.isNotEmpty() && prefixedId !in selectedIds) continue
 

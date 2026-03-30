@@ -20,7 +20,7 @@ class MergedCalendarRepository(
         val system = systemRepo.getAvailableCalendars()
         if (!authManager.hasAccounts()) return system
         val google = try { googleApiRepo.getAvailableCalendars() } catch (_: Exception) { emptyList() }
-        return system + google
+        return deduplicateCalendars(system, google)
     }
 
     override suspend fun getEvents(from: ZonedDateTime, to: ZonedDateTime): List<CalendarEvent> {
@@ -57,6 +57,30 @@ class MergedCalendarRepository(
         return systemRepo.observeEventsForDateRange(from, to)
     }
 
+    /**
+     * Prefer Google API calendars over system ones.
+     * Match by account email + display name (case-insensitive).
+     */
+    private fun deduplicateCalendars(
+        system: List<CalendarInfo>,
+        google: List<CalendarInfo>,
+    ): List<CalendarInfo> {
+        if (google.isEmpty()) return system
+        if (system.isEmpty()) return google
+
+        val googleKeys = google.map { calendarKey(it) }.toSet()
+        val uniqueSystem = system.filter { calendarKey(it) !in googleKeys }
+        return google + uniqueSystem
+    }
+
+    private fun calendarKey(c: CalendarInfo): String {
+        return "${c.accountName.lowercase().trim()}|${c.displayName.lowercase().trim()}"
+    }
+
+    /**
+     * Prefer Google API events over system ones.
+     * Match by title + start time (within 1 minute).
+     */
     private fun deduplicateEvents(
         system: List<CalendarEvent>,
         google: List<CalendarEvent>,
@@ -64,14 +88,11 @@ class MergedCalendarRepository(
         if (google.isEmpty()) return system
         if (system.isEmpty()) return google
 
-        // Build a set of keys from system events for fast lookup
-        val systemKeys = system.map { eventKey(it) }.toSet()
-        // Only add Google events that don't match a system event
-        val uniqueGoogle = google.filter { eventKey(it) !in systemKeys }
-        return system + uniqueGoogle
+        val googleKeys = google.map { eventKey(it) }.toSet()
+        val uniqueSystem = system.filter { eventKey(it) !in googleKeys }
+        return google + uniqueSystem
     }
 
-    /** Match events by title + start time (within 1 minute) */
     private fun eventKey(e: CalendarEvent): String {
         val roundedStart = e.startTime.toEpochSecond() / 60 // 1-minute granularity
         return "${e.title.lowercase().trim()}|$roundedStart"
